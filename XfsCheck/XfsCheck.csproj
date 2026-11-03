@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>x86</PlatformTarget>
+    <RuntimeIdentifier>win-x86</RuntimeIdentifier>
+    <AssemblyName>XfsCheck</AssemblyName>
+    <RootNamespace>BdmSupervisor</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Reusa la capa XFS del proyecto principal -->
+    <Compile Include="..\Xfs\*.cs" />
+    <Compile Include="..\Services\LogService.cs" />
+  </ItemGroup>
+</Project>
