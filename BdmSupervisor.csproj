@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -9,7 +9,9 @@
     <!-- msxfs.dll (XFS Manager) es de 32 bits en casi todas las instalaciones: la app DEBE ser x86 -->
     <PlatformTarget>x86</PlatformTarget>
     <RuntimeIdentifier>win-x86</RuntimeIdentifier>
-    <SelfContained>false</SelfContained>
+    <SelfContained>true</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     <AssemblyName>BdmSupervisor</AssemblyName>
     <RootNamespace>BdmSupervisor</RootNamespace>
     <Version>0.1.0</Version>
@@ -38,3 +40,4 @@
   </ItemGroup>
 
 </Project>
+

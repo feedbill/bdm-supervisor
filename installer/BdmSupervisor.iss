@@ -1,6 +1,6 @@
-; BDM-500 Supervisor - instalador Feedbill (Inno Setup 6)
+﻿; BDM-500 Supervisor - instalador Feedbill (Inno Setup 6)
 #define AppName "BDM-500 Supervisor"
-#define AppVersion "0.1.0"
+#define AppVersion "0.1.1"
 #define AppPublisher "Feedbill"
 #define AppExe "BdmSupervisor.exe"
 #define SrcDir "C:\feedbill\BdmSupervisor"
@@ -31,16 +31,17 @@ Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Crear acceso directo en el escritorio"; GroupDescription: "Accesos directos:"
-Name: "vdm"; Description: "Registrar esta aplicación como herramienta de supervisor (VDM / TestTool) del Service Provider SNBC"; GroupDescription: "Integración con el SP XFS de SNBC:"; Check: SpInstalled
-Name: "profile"; Description: "Configurar el SP según el equipo instalado:"; GroupDescription: "Perfil del BDM-500:"; Flags: checkablealone; Check: SpInstalled
-Name: "profile\galicia"; Description: "Sin shutter eléctrico / mecánico (Banco Galicia)"; Flags: exclusive; Check: SpInstalled
-Name: "profile\electrico"; Description: "Con shutter eléctrico (configuración de fábrica SNBC)"; Flags: exclusive unchecked; Check: SpInstalled
+Name: "vdm"; Description: "Registrar esta aplicaciÃ³n como herramienta de supervisor (VDM / TestTool) del Service Provider SNBC"; GroupDescription: "IntegraciÃ³n con el SP XFS de SNBC:"; Check: SpInstalled
+Name: "profile"; Description: "Configurar el SP segÃºn el equipo instalado:"; GroupDescription: "Perfil del BDM-500:"; Flags: checkablealone; Check: SpInstalled
+Name: "profile\galicia"; Description: "Sin shutter elÃ©ctrico / mecÃ¡nico (Banco Galicia)"; Flags: exclusive; Check: SpInstalled
+Name: "profile\electrico"; Description: "Con shutter elÃ©ctrico (configuraciÃ³n de fÃ¡brica SNBC)"; Flags: exclusive unchecked; Check: SpInstalled
 
 [Files]
 Source: "{#SrcDir}\publish\BdmSupervisor.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SrcDir}\appsettings.json"; DestDir: "{app}"; Flags: onlyifdoesntexist uninsneveruninstall
 Source: "{#SrcDir}\XfsCheck\publish\XfsCheck.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SrcDir}\README.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SrcDir}\installer\vc_redist.x86.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: NeedVcRedist
 
 [Dirs]
 Name: "C:\Feedbill\BdmSupervisor\logs"; Permissions: users-modify
@@ -56,7 +57,7 @@ Name: "{commondesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopi
 ; TestTool del VDM: guarda el valor anterior y apunta a esta app
 Root: HKLM32; Subkey: "SOFTWARE\XFS\SERVICE_PROVIDERS\VDM_SNBC\Config"; ValueType: string; ValueName: "TestTool_backup_feedbill"; ValueData: "{code:OldValue|SOFTWARE\XFS\SERVICE_PROVIDERS\VDM_SNBC\Config|TestTool}"; Tasks: vdm; Check: VdmKeyExists; Flags: createvalueifdoesntexist
 Root: HKLM32; Subkey: "SOFTWARE\XFS\SERVICE_PROVIDERS\VDM_SNBC\Config"; ValueType: string; ValueName: "TestTool"; ValueData: "{app}\{#AppExe} --vda"; Tasks: vdm; Check: VdmKeyExists
-; Perfil sin shutter eléctrico: la placa SIU no controla el shutter
+; Perfil sin shutter elÃ©ctrico: la placa SIU no controla el shutter
 Root: HKLM32; Subkey: "SOFTWARE\XFS\SERVICE_PROVIDERS\SnbcTCR\SiuConfig"; ValueType: dword; ValueName: "SiuIsControl_backup_feedbill"; ValueData: "{code:OldDword|SOFTWARE\XFS\SERVICE_PROVIDERS\SnbcTCR\SiuConfig|SiuIsControl}"; Tasks: profile\galicia; Check: SiuKeyExists; Flags: createvalueifdoesntexist
 Root: HKLM32; Subkey: "SOFTWARE\XFS\SERVICE_PROVIDERS\SnbcTCR\SiuConfig"; ValueType: dword; ValueName: "SiuIsControl"; ValueData: "0"; Tasks: profile\galicia; Check: SiuKeyExists
 Root: HKLM32; Subkey: "SOFTWARE\XFS\SERVICE_PROVIDERS\SnbcTCR\SiuConfig"; ValueType: dword; ValueName: "SiuIsControl"; ValueData: "1"; Tasks: profile\electrico; Check: SiuKeyExists
@@ -67,6 +68,7 @@ Filename: "C:\SNBC SP\SnbcTCR\DevCfg\CRM_TCR.ini"; Section: "PHY"; Key: "Shutter
 Filename: "C:\SNBC SP\SnbcTCR\DevCfg\CRM_TCR.ini"; Section: "PHY"; Key: "ShutterDropDoorSurport"; String: "1"; Tasks: profile\electrico; Check: SpFileExists('C:\SNBC SP\SnbcTCR\DevCfg\CRM_TCR.ini')
 
 [Run]
+Filename: "{tmp}\vc_redist.x86.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Instalando Visual C++ Redistributable (x86)..."; Check: NeedVcRedist; Flags: waituntilterminated
 Filename: "{app}\{#AppExe}"; Description: "Abrir {#AppName}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
@@ -76,6 +78,13 @@ Filename: "taskkill"; Parameters: "/F /IM BdmSupervisor.exe"; Flags: runhidden; 
 const
   VdmKey = 'SOFTWARE\XFS\SERVICE_PROVIDERS\VDM_SNBC\Config';
   SiuKey = 'SOFTWARE\XFS\SERVICE_PROVIDERS\SnbcTCR\SiuConfig';
+
+function NeedVcRedist: Boolean;
+var Inst: Cardinal;
+begin
+  Result := True;
+  if RegQueryDWordValue(HKLM32, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x86', 'Installed', Inst) then Result := (Inst = 0);
+end;
 
 function SpInstalled: Boolean;
 begin
@@ -151,3 +160,4 @@ begin
     KillSp;
   end;
 end;
+
