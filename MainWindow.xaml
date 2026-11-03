@@ -93,33 +93,26 @@
                 </Grid>
             </TabItem>
 
-            <!-- SUPERVISOR -->
+            <!-- SUPERVISOR + DIAGNÓSTICO -->
             <TabItem Header="Supervisor">
-                <StackPanel Margin="24" MaxWidth="640" HorizontalAlignment="Left">
-                    <TextBlock Style="{StaticResource H1}" Text="Modo supervisor (VDM)"/>
-                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource Muted}" Margin="0,0,0,16"
-                               Text="Al entrar, la aplicación bancaria libera el equipo y queda fuera de servicio. Al salir, retoma la operación normal. Las herramientas de Diagnóstico solo funcionan con el modo activo."/>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <TextBlock Text="PIN" FontSize="16" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                        <PasswordBox x:Name="PinBox" Width="160" FontSize="18" Padding="8"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <Button x:Name="EnterBtn" Content="Entrar en modo supervisor" Style="{StaticResource Primary}" Click="Enter_Click"/>
-                        <Button x:Name="ExitBtn" Content="Salir del modo supervisor" Style="{StaticResource Danger}" Click="Exit_Click" IsEnabled="False"/>
-                    </StackPanel>
-                    <TextBlock x:Name="VdmNote" FontSize="13" Foreground="{StaticResource Warn}" TextWrapping="Wrap" Margin="6,12,0,0"/>
-                </StackPanel>
-            </TabItem>
-
-            <!-- DIAGNÓSTICO -->
-            <TabItem Header="Diagnóstico">
                 <Grid Margin="24">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <StackPanel Grid.Row="0">
-                        <TextBlock Style="{StaticResource H1}" Text="Pruebas de módulos"/>
+                        <TextBlock Style="{StaticResource H1}" Text="Modo supervisor (VDM)"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource Muted}" Margin="0,0,0,10"
+                                   Text="Al entrar, la aplicación bancaria libera el equipo y queda fuera de servicio. Al salir, retoma la operación normal."/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="EnterBtn" Content="Entrar en modo supervisor" Style="{StaticResource Primary}" Click="Enter_Click"/>
+                            <Button x:Name="ExitBtn" Content="Salir del modo supervisor" Style="{StaticResource Danger}" Click="Exit_Click" IsEnabled="False"/>
+                        </StackPanel>
+                        <TextBlock x:Name="VdmNote" FontSize="13" Foreground="{StaticResource Warn}" TextWrapping="Wrap" Margin="6,6,0,0"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Margin="0,18,0,0">
+                        <TextBlock Style="{StaticResource H1}" Text="Diagnóstico"/>
                         <WrapPanel x:Name="DiagPanel" IsEnabled="False">
                             <Button Content="Reset del equipo" Click="Reset_Click"/>
                             <Button Content="Abrir shutter" Click="OpenShutter_Click"/>
@@ -131,48 +124,10 @@
                         </WrapPanel>
                         <TextBlock x:Name="DiagHint" FontSize="13" Foreground="{StaticResource Warn}" Margin="6,4,0,10"
                                    Text="Entre en modo supervisor para habilitar las pruebas."/>
-                        <TextBlock Style="{StaticResource H1}" Text="Log" Margin="0,8,0,8"/>
+                        <TextBlock Style="{StaticResource H1}" Text="Log" Margin="0,4,0,8"/>
                     </StackPanel>
-                    <TextBox Grid.Row="1" x:Name="LogBox" IsReadOnly="True" FontFamily="Consolas" FontSize="12"
+                    <TextBox Grid.Row="2" x:Name="LogBox" IsReadOnly="True" FontFamily="Consolas" FontSize="12"
                              VerticalScrollBarVisibility="Auto" TextWrapping="NoWrap" Background="#111" Foreground="#DDD" Padding="8"/>
-                </Grid>
-            </TabItem>
-
-            <!-- PARÁMETROS -->
-            <TabItem Header="Parámetros">
-                <Grid Margin="24">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <StackPanel Grid.Row="0">
-                        <TextBlock Style="{StaticResource H1}" Text="Parámetros del Service Provider SNBC"/>
-                        <TextBlock FontSize="13" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,10"
-                                   Text="Valores leídos de los INI y del registro del SP. Para editar hace falta el modo supervisor; cada cambio deja una copia de seguridad. Los cambios aplican al reiniciar el SP."/>
-                    </StackPanel>
-                    <DataGrid Grid.Row="1" x:Name="ParamsGrid" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
-                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" FontSize="13" RowHeight="34" BorderThickness="0" Background="White"
-                              CellEditEnding="ParamsGrid_CellEditEnding">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Grupo" Binding="{Binding Group}" IsReadOnly="True" Width="110"/>
-                            <DataGridTextColumn Header="Parámetro" Binding="{Binding Name}" IsReadOnly="True" Width="230"/>
-                            <DataGridTextColumn Header="Valor" Binding="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Width="190">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock"><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="TextTrimming" Value="CharacterEllipsis"/></Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
-                            <DataGridTextColumn Header="Ubicación" Binding="{Binding Location}" IsReadOnly="True" Width="200"/>
-                            <DataGridTextColumn Header="Descripción" Binding="{Binding Description}" IsReadOnly="True" Width="*"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                    <WrapPanel Grid.Row="2" Margin="0,12,0,0">
-                        <Button Content="Recargar" Click="ParamsReload_Click"/>
-                        <Button x:Name="ParamsSaveBtn" Content="Guardar cambios" Style="{StaticResource Primary}" Click="ParamsSave_Click"/>
-                        <Button Content="Aplicar perfil Galicia (sin shutter eléctrico)" Click="ParamsGalicia_Click" MinWidth="340"/>
-                        <Button Content="Reiniciar SP" Click="RestartSp_Click" Style="{StaticResource Danger}"/>
-                        <Button Content="Exportar parámetros" Click="ParamsExport_Click"/>
-                    </WrapPanel>
                 </Grid>
             </TabItem>
 

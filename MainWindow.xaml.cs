@@ -15,7 +15,6 @@ public partial class MainWindow : Window
     private IDeviceService? _dev;
     private readonly XfsEventWindow _events;
     private readonly SpParamsService _params;
-    private List<SpParam> _paramList = new();
     private CimStatus? _lastStatus;
 
     public const string WindowTitle = "BDM-500 Supervisor · Feedbill";
@@ -34,7 +33,7 @@ public partial class MainWindow : Window
             LogBox.ScrollToEnd();
         });
         CfgText.Text = $"Mode={_cfg.Mode}\nCIM={_cfg.CimLogicalName}\nVDM={_cfg.VdmLogicalName}\nLogs={_cfg.LogDir}\nSP logs={_cfg.SpLogDir}\nSNBC tool={_cfg.SnbcToolPath}";
-        Loaded += async (_, _) => { CheckTestTool(); LoadParams(); await ConnectAsync(); };
+        Loaded += async (_, _) => { CheckTestTool(); await ConnectAsync(); };
         Closed += (_, _) => { _dev?.Dispose(); _events.Dispose(); };
     }
 
@@ -54,7 +53,7 @@ public partial class MainWindow : Window
         {
             _dev.AssumeSupervisorActive();
             UpdateModeUi();
-            Tabs.SelectedIndex = 2; // Diagnóstico
+            Tabs.SelectedIndex = 1; // Supervisor / Diagnóstico
             StatusBar.Text = "Modo supervisor activado desde la aplicación bancaria";
         }
         await RefreshAsync();
@@ -100,11 +99,6 @@ public partial class MainWindow : Window
     private async void Enter_Click(object s, RoutedEventArgs e)
     {
         if (_dev is null) return;
-        if (PinBox.Password != _cfg.SupervisorPin)
-        {
-            MessageBox.Show("PIN incorrecto.", "Supervisor", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
         await RunAsync("Solicitando modo supervisor (esperando que la app bancaria libere el equipo)...", () => _dev.EnterSupervisorAsync());
         UpdateModeUi();
     }
@@ -126,7 +120,6 @@ public partial class MainWindow : Window
         ExitBtn.IsEnabled = active;
         DiagPanel.IsEnabled = active;
         DiagHint.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
-        if (!active) PinBox.Clear();
     }
 
     // ---------- Diagnóstico ----------
@@ -210,86 +203,6 @@ public partial class MainWindow : Window
             MessageBox.Show("TestTool actualizado. El SP lo toma en la próxima entrada al modo supervisor.", "BDM Supervisor");
         }
         catch (Exception ex) { MessageBox.Show(ex.Message, "BDM Supervisor", MessageBoxButton.OK, MessageBoxImage.Error); }
-    }
-
-    // ---------- Parámetros ----------
-    private void LoadParams()
-    {
-        try
-        {
-            _paramList = _params.SpInstalled ? _params.Load() : new List<SpParam>();
-            ParamsGrid.ItemsSource = _paramList;
-            if (!_params.SpInstalled) StatusBar.Text = "SP de SNBC no encontrado en " + SpParamsService.SpDir;
-        }
-        catch (Exception ex) { _log.Error("Parámetros: " + ex.Message); }
-    }
-
-    private void ParamsReload_Click(object s, RoutedEventArgs e) => LoadParams();
-
-    private void ParamsGrid_CellEditEnding(object s, System.Windows.Controls.DataGridCellEditEndingEventArgs e)
-    {
-        if (e.Row.Item is SpParam p && !p.Editable) { e.Cancel = true; return; }
-        if (_dev?.Mode != SupervisorMode.Active)
-        {
-            e.Cancel = true;
-            MessageBox.Show("Para editar parámetros entre primero en modo supervisor.", "Parámetros");
-        }
-    }
-
-    private void ParamsSave_Click(object s, RoutedEventArgs e)
-    {
-        if (_dev?.Mode != SupervisorMode.Active) { MessageBox.Show("Para guardar parámetros entre primero en modo supervisor.", "Parámetros"); return; }
-        ParamsGrid.CommitEdit(); ParamsGrid.CommitEdit();
-        var changes = _paramList.Where(p => p.Changed && p.Editable).ToList();
-        if (changes.Count == 0) { StatusBar.Text = "Sin cambios"; return; }
-        string resumen = string.Join("\n", changes.Select(c => $"• {c.Name}: {c.Original} → {c.Value}"));
-        if (MessageBox.Show($"Se van a aplicar {changes.Count} cambio(s):\n\n{resumen}\n\nSe guarda copia de seguridad de cada archivo/valor. ¿Continuar?",
-                "Guardar parámetros", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-        try
-        {
-            var done = _params.Save(changes);
-            ParamsGrid.Items.Refresh();
-            MessageBox.Show("Aplicado:\n" + string.Join("\n", done) + "\n\nReinicie el SP para que tome los cambios (botón Reiniciar SP).", "Parámetros");
-        }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Parámetros", MessageBoxButton.OK, MessageBoxImage.Error); }
-    }
-
-    private void ParamsGalicia_Click(object s, RoutedEventArgs e)
-    {
-        var perfil = new Dictionary<string, string>
-        {
-            ["SiuIsControl"] = "0", ["BoardCount"] = "1", ["ShutterDropDoorSurport"] = "0", ["SaveDoorSurport"] = "0",
-        };
-        foreach (var p in _paramList.Where(p => perfil.ContainsKey(p.Key))) p.Value = perfil[p.Key];
-        ParamsGrid.Items.Refresh();
-        StatusBar.Text = "Perfil Galicia cargado en la grilla; revise y pulse Guardar cambios";
-    }
-
-    private async void RestartSp_Click(object s, RoutedEventArgs e)
-    {
-        if (MessageBox.Show("Se cierran los procesos del SP de SNBC (SNBC_SPCRM, SNBC_SPVDM) y se reconecta. La aplicación bancaria debe estar detenida. ¿Continuar?",
-                "Reiniciar SP", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-        await Run("Reiniciando SP...", () =>
-        {
-            _dev?.Dispose(); _dev = null;
-            foreach (var name in new[] { "SNBC_SPCRM", "SNBC_SPVDM", "STM_IO_SRV" })
-                foreach (var pr in Process.GetProcessesByName(name)) { try { pr.Kill(); pr.WaitForExit(5000); } catch { } }
-            Thread.Sleep(2000);
-        });
-        await ConnectAsync();
-        UpdateModeUi();
-    }
-
-    private async void ParamsExport_Click(object s, RoutedEventArgs e)
-    {
-        string path = "";
-        await Run("Exportando...", () =>
-        {
-            Directory.CreateDirectory(_cfg.ExportDir);
-            path = Path.Combine(_cfg.ExportDir, $"parametros_SP_{Environment.MachineName}_{DateTime.Now:yyyyMMdd_HHmm}.txt");
-            File.WriteAllLines(path, _paramList.Select(p => $"{p.Group,-16} {p.Name,-40} = {p.Value,-30} ({p.Location} {p.Key})"));
-        });
-        if (path.Length > 0) Process.Start("explorer.exe", $"/select,\"{path}\"");
     }
 
     // ---------- Helpers ----------
