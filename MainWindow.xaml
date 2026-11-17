@@ -102,9 +102,9 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="200"/>
+                        <ColumnDefinition Width="230"/>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="200"/>
+                        <ColumnDefinition Width="230"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- Izquierda: botones, alineados con los indicadores de la derecha (misma grilla de 9 filas) -->
@@ -123,7 +123,11 @@
                                         <ControlTemplate TargetType="Button">
                                             <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                                                     BorderThickness="1" CornerRadius="7" Padding="10,5">
-                                                <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                                                <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Left">
+                                                    <ContentPresenter.Resources>
+                                                        <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style>
+                                                    </ContentPresenter.Resources>
+                                                </ContentPresenter>
                                             </Border>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Brand}"/></Trigger>
@@ -145,15 +149,21 @@
                     </UniformGrid>
 
                     <!-- Centro: diagrama -->
-                    <Grid Grid.Row="0" Grid.Column="1" Margin="8,0,8,0">
-                        <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                        <Viewbox Grid.Row="0" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <Grid Grid.Row="0" Grid.Column="1" Margin="12,0,12,0">
+                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                        <Border x:Name="ValidatorBar" Grid.Row="0" CornerRadius="7" Background="#B8B8BE" Padding="14,8" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock x:Name="ValidatorTitle" Text="VALIDADOR: SIN LECTURA" Foreground="White" FontSize="18" FontWeight="Bold"/>
+                                <TextBlock x:Name="ValidatorDetail" Text="Iniciando lectura en vivo..." Foreground="White" FontSize="13" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Viewbox Grid.Row="1" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Top">
                             <Grid Width="352" Height="383">
                                 <Image Source="pack://application:,,,/Resources/bne_s110m.png" Stretch="Fill"/>
                                 <Canvas x:Name="SensorCanvas" Width="352" Height="383"/>
                             </Grid>
                         </Viewbox>
-                        <WrapPanel Grid.Row="1" HorizontalAlignment="Center" Margin="0,8,0,0">
+                        <WrapPanel Grid.Row="2" HorizontalAlignment="Center" Margin="0,8,0,0">
                             <Rectangle Width="16" Height="16" Fill="#3C78D8" Opacity="0.8" Margin="0,0,5,0"/>
                             <TextBlock Text="Libre" FontSize="13" VerticalAlignment="Center" Margin="0,0,14,0"/>
                             <Rectangle Width="16" Height="16" Fill="#D1333B" Opacity="0.85" Margin="0,0,5,0"/>
@@ -163,14 +173,14 @@
                             <Rectangle Width="16" Height="16" Stroke="#F08C00" StrokeThickness="3" StrokeDashArray="2,1" Fill="#46F08C00" RadiusX="4" RadiusY="4" Margin="0,0,5,0"/>
                             <TextBlock Text="Tapa abierta" FontSize="13" VerticalAlignment="Center"/>
                         </WrapPanel>
-                        <TextBlock Grid.Row="2" x:Name="SensorTimeText" Visibility="Collapsed"/>
+                        <TextBlock Grid.Row="3" x:Name="SensorTimeText" Visibility="Collapsed"/>
                     </Grid>
 
                     <!-- Derecha: indicadores -->
                     <UniformGrid Grid.Row="0" Grid.Column="2" x:Name="SensorTiles" Columns="1"/>
 
                     <!-- Detalle -->
-                    <Grid Grid.Row="1" Grid.ColumnSpan="3" Margin="0,10,0,8">
+                    <Grid Grid.Row="1" Grid.ColumnSpan="3" Margin="0,10,0,8" Visibility="Collapsed">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>

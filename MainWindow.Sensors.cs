@@ -159,7 +159,7 @@ public partial class MainWindow
     {
         foreach (var n in TileNames)
         {
-            var title = new TextBlock { Text = n, Foreground = Brushes.White, FontSize = 14, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+            var title = new TextBlock { Text = n.ToUpperInvariant(), Foreground = Brushes.White, FontSize = 14, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
             var state = new TextBlock { Text = "Sin lectura en vivo", Foreground = Brushes.White, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 0) };
             var box = new Border
             {
@@ -199,6 +199,11 @@ public partial class MainWindow
         SetTile("Antipesca", s.Expand.Values.Any(v => v), "Libre", "sensor antipesca tapado");
     }
 
+    private void SetValidatorBar(Brush bg, string title, string detail)
+    {
+        ValidatorBar.Background = bg; ValidatorTitle.Text = title; ValidatorDetail.Text = detail;
+    }
+
     private void ClearTiles()
     {
         foreach (var (box, state) in _tiles.Values) { box.Background = TileOff; state.Text = "Sin lectura en vivo"; box.ToolTip = "Pulse «Leer sensores en vivo»"; }
@@ -220,12 +225,14 @@ public partial class MainWindow
     {
         if (_dev?.NativeActive == true) return;
         SensorCoveredText.Text = "—";
-        if (_lastStatus is null) { SensorProcText.Text = "Sin lectura"; SensorErrText.Text = "—"; return; }
+        if (_lastStatus is null) { SensorProcText.Text = "Sin lectura"; SensorErrText.Text = "—"; SetValidatorBar(TileOff, "VALIDADOR: SIN LECTURA", "Sin conexión con el equipo"); return; }
         SensorProcText.Text = $"Por XFS: {_lastStatus.Device} (para ver sensores en vivo: «Leer sensores en vivo»)";
         var (code, detail, jam) = ParseLastError(_lastStatus.Extra);
         bool hasErr = code.Trim('0', '-').Length > 0;
         SensorErrText.Foreground = hasErr ? Bad() : Ok();
         SensorErrText.Text = hasErr ? $"Último error informado por XFS: {(jam ? "ATASCO. " : "")}{code} {detail}".TrimEnd() : "Sin errores informados por XFS";
+        SetValidatorBar(hasErr ? TileBad : TileOff, hasErr ? "VALIDADOR: VERIFICAR" : "VALIDADOR: " + _lastStatus.Device,
+            hasErr ? $"Último error: {(jam ? "atasco · " : "")}{code} {detail}".TrimEnd() : "Lectura en vivo pausada");
     }
 
     private void ShowSensors(SensorSnapshot s)
@@ -250,6 +257,13 @@ public partial class MainWindow
         errs.AddRange(s.Errors.Where(e => e.Value).Select(e => ErrorNames.GetValueOrDefault(e.Key, e.Key)));
         SensorErrText.Foreground = errs.Count > 0 ? Bad() : Ok();
         SensorErrText.Text = errs.Count > 0 ? string.Join("\n", errs) : "Sin atascos ni errores";
+        bool procErr = s.Gates.Process == 3;
+        if (errs.Count == 0 && procErr) errs.Add("el validador informa estado de error");
+        if (errs.Count == 0 && (s.Gates.EscrowFault || s.Gates.DropDoorFault)) errs.Add("anomalía en una compuerta");
+        string procName = s.Gates.Process >= 0 && s.Gates.Process < ProcessNames.Length ? ProcessNames[s.Gates.Process] : $"estado {s.Gates.Process}";
+        SetValidatorBar(errs.Count > 0 ? TileBad : TileOk,
+            errs.Count > 0 ? "VALIDADOR: VERIFICAR" : "VALIDADOR: " + procName.ToUpperInvariant(),
+            errs.Count > 0 ? string.Join(" · ", errs) : "Sin atascos ni errores");
 
         var covered2 = Boxes.Where(b => b.Keys.Any(k => (b.Expand ? s.Expand : s.Sensors).TryGetValue(k, out bool c) && c)).Select(b => b.Name).ToList();
         SensorCoveredText.Text = covered2.Count > 0 ? string.Join(" · ", covered2) : "Ninguno";
