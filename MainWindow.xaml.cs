@@ -51,9 +51,9 @@ public partial class MainWindow : Window
 
         await Run("Conectando al equipo...", () => _dev.Connect());
         DeviceText.Text = _dev.Description;
-        VdmNote.Text = _dev.VdmSupported
+        _log.Info(_dev.VdmSupported
             ? "VDM disponible: Softy liberará el equipo automáticamente al entrar."
-            : "El Service Provider no expone VDM. Antes de entrar, detenga la aplicación bancaria (Softy) manualmente.";
+            : "El Service Provider no expone VDM. Antes de entrar, detenga la aplicación bancaria (Softy) manualmente.");
         if (App.LaunchedBySp)
         {
             _dev.AssumeSupervisorActive();
@@ -170,7 +170,7 @@ public partial class MainWindow : Window
         SupervisorBtn.Content = active ? "Salir del modo supervisor" : "Entrar en modo supervisor";
         SupervisorBtn.Background = active ? (Brush)FindResource("Dark") : (Brush)FindResource("Brand");
         SupervisorBtn.Foreground = Brushes.White;
-        SupervisorBtn.BorderThickness = new Thickness(0);
+        SupervisorBtn.BorderBrush = SupervisorBtn.Background;
         UpdateGateUi();
     }
 
@@ -201,9 +201,6 @@ public partial class MainWindow : Window
         if (!native) { _escrowOpen = false; _dropOpen = false; }
         EscrowBtn.Content = _escrowOpen ? "Cerrar escrow" : "Abrir escrow";
         DropBtn.Content = _dropOpen ? "Cerrar compuerta de caída" : "Abrir compuerta de caída";
-        LiveBtn.Content = native ? "Detener lectura en vivo" : "Iniciar lectura en vivo";
-        LiveDot.Fill = native ? (Brush)FindResource("Ok") : (Brush)FindResource("Muted");
-        if (!native) LiveText.Text = _dev?.Mode == SupervisorMode.Active ? "Detenida" : "Detenida (fuera de modo supervisor)";
         if (!native) ClearSensors();
     }
 

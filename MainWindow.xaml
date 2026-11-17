@@ -102,59 +102,47 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="250"/>
+                        <ColumnDefinition Width="200"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="200"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- Izquierda: botones -->
-                    <ScrollViewer Grid.Row="0" Grid.Column="0" VerticalScrollBarVisibility="Auto">
-                        <StackPanel>
-                            <StackPanel.Resources>
-                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                                    <Setter Property="MinHeight" Value="42"/>
-                                    <Setter Property="MinWidth" Value="0"/>
-                                    <Setter Property="FontSize" Value="14"/>
-                                    <Setter Property="Padding" Value="10,6"/>
-                                    <Setter Property="Margin" Value="0,0,8,6"/>
-                                    <Setter Property="HorizontalAlignment" Value="Stretch"/>
-                                </Style>
-                                <Style x:Key="Sec" TargetType="TextBlock">
-                                    <Setter Property="FontSize" Value="13"/>
-                                    <Setter Property="FontWeight" Value="SemiBold"/>
-                                    <Setter Property="Foreground" Value="{StaticResource Muted}"/>
-                                    <Setter Property="Margin" Value="2,10,0,6"/>
-                                </Style>
-                            </StackPanel.Resources>
-                            <TextBlock Style="{StaticResource Sec}" Text="MODO SUPERVISOR" Margin="2,0,0,6"/>
-                            <Button x:Name="SupervisorBtn" Content="Entrar en modo supervisor" Click="SupervisorToggle_Click" FontWeight="SemiBold"/>
-                            <TextBlock x:Name="VdmNote" FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="2,0,8,2"/>
-
-                            <TextBlock Style="{StaticResource Sec}" Text="SENSORES EN VIVO"/>
-                            <Border Background="{StaticResource Panel}" CornerRadius="6" Padding="10,6" Margin="0,0,8,6">
-                                <StackPanel Orientation="Horizontal">
-                                    <Ellipse x:Name="LiveDot" Width="12" Height="12" Fill="{StaticResource Muted}" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                    <TextBlock x:Name="LiveText" Text="Detenida" FontSize="13" VerticalAlignment="Center" TextWrapping="Wrap"/>
-                                </StackPanel>
-                            </Border>
-                            <Button x:Name="LiveBtn" Content="Iniciar lectura en vivo" Click="LiveToggle_Click"/>
-
-                            <TextBlock Style="{StaticResource Sec}" Text="DIAGNÓSTICO"/>
-                            <StackPanel x:Name="DiagPanel">
-                                <Button Content="Prueba de depósito" Click="TestDeposit_Click"/>
-                                <Button Content="Reset del equipo" Click="Reset_Click"/>
-                                <Button Content="Cambio de bolsa / contadores" Click="BagExchange_Click"/>
-                                <Button Content="Leer capabilities" Click="Caps_Click"/>
-                            </StackPanel>
-
-                            <TextBlock Style="{StaticResource Sec}" Text="COMPUERTAS"/>
-                            <StackPanel x:Name="GatePanel">
-                                <Button x:Name="EscrowBtn" Content="Abrir escrow" Click="ToggleEscrow_Click"/>
-                                <Button x:Name="DropBtn" Content="Abrir compuerta de caída" Click="ToggleDrop_Click"/>
-                                <Button Content="Probar aleteo" Click="Flutter_Click"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </ScrollViewer>
+                    <!-- Izquierda: botones, alineados con los indicadores de la derecha (misma grilla de 9 filas) -->
+                    <UniformGrid Grid.Row="0" Grid.Column="0" Rows="9" Columns="1">
+                        <UniformGrid.Resources>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="White"/>
+                                <Setter Property="Foreground" Value="{StaticResource Dark}"/>
+                                <Setter Property="BorderBrush" Value="#D0D0D6"/>
+                                <Setter Property="FontSize" Value="14"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                                <Setter Property="Margin" Value="0,0,0,6"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                                    BorderThickness="1" CornerRadius="7" Padding="10,5">
+                                                <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Brand}"/></Trigger>
+                                                <Trigger Property="IsPressed" Value="True"><Setter TargetName="Bd" Property="Opacity" Value="0.8"/></Trigger>
+                                                <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Bd" Property="Opacity" Value="0.45"/></Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </UniformGrid.Resources>
+                        <Button x:Name="SupervisorBtn" Content="Entrar en modo supervisor" Click="SupervisorToggle_Click"/>
+                        <Button Content="Prueba de depósito" Click="TestDeposit_Click"/>
+                        <Button Content="Reset del equipo" Click="Reset_Click"/>
+                        <Button Content="Cambio de bolsa" Click="BagExchange_Click"/>
+                        <Button x:Name="EscrowBtn" Content="Abrir escrow" Click="ToggleEscrow_Click"/>
+                        <Button x:Name="DropBtn" Content="Abrir compuerta de caída" Click="ToggleDrop_Click"/>
+                        <Button Content="Probar aleteo" Click="Flutter_Click"/>
+                    </UniformGrid>
 
                     <!-- Centro: diagrama -->
                     <Grid Grid.Row="0" Grid.Column="1" Margin="8,0,8,0">
@@ -175,7 +163,7 @@
                             <Rectangle Width="16" Height="16" Stroke="#F08C00" StrokeThickness="3" StrokeDashArray="2,1" Fill="#46F08C00" RadiusX="4" RadiusY="4" Margin="0,0,5,0"/>
                             <TextBlock Text="Tapa abierta" FontSize="13" VerticalAlignment="Center"/>
                         </WrapPanel>
-                        <TextBlock Grid.Row="2" x:Name="SensorTimeText" FontSize="12" Foreground="{StaticResource Muted}" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                        <TextBlock Grid.Row="2" x:Name="SensorTimeText" Visibility="Collapsed"/>
                     </Grid>
 
                     <!-- Derecha: indicadores -->
@@ -201,21 +189,18 @@
                         </StackPanel>
                     </Grid>
 
-                    <Expander Grid.Row="2" Grid.ColumnSpan="3" Header="Log" FontSize="13">
-                        <TextBox x:Name="LogBox" Height="140" IsReadOnly="True" FontFamily="Consolas" FontSize="12"
-                                 VerticalScrollBarVisibility="Auto" TextWrapping="NoWrap" Background="#111" Foreground="#DDD" Padding="8"/>
-                    </Expander>
                 </Grid>
             </TabItem>
 
             <!-- MANTENIMIENTO -->
             <TabItem Header="Mantenimiento">
-                <StackPanel Margin="24" MaxWidth="700" HorizontalAlignment="Left">
+                <StackPanel Margin="24" HorizontalAlignment="Left">
                     <TextBlock Style="{StaticResource H1}" Text="Herramientas"/>
                     <Button Content="Exportar bundle de diagnóstico (ZIP)" Style="{StaticResource Primary}" Click="Export_Click" HorizontalAlignment="Left" MinWidth="360"/>
                     <TextBlock FontSize="13" Foreground="{StaticResource Muted}" Margin="6,0,0,16" TextWrapping="Wrap"
                                Text="Junta los logs de esta app, los del Service Provider SNBC y datos del equipo para enviarlos a soporte Feedbill."/>
                     <Button Content="Abrir carpeta de logs" Click="OpenLogs_Click" HorizontalAlignment="Left" MinWidth="360"/>
+                    <Button Content="Leer capabilities del equipo" Click="Caps_Click" HorizontalAlignment="Left" MinWidth="360"/>
                     <Button x:Name="SnbcToolBtn" Content="Abrir herramienta SNBC del validador (firmware / templates)" Click="SnbcTool_Click" HorizontalAlignment="Left" MinWidth="360"/>
                     <TextBlock FontSize="13" Foreground="{StaticResource Muted}" Margin="6,0,0,16" TextWrapping="Wrap"
                                Text="Requiere modo supervisor activo. La ruta del tool se configura en appsettings.json (Paths.SnbcToolPath)."/>
@@ -223,6 +208,9 @@
                     <TextBlock x:Name="CfgText" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"/>
                     <TextBlock Style="{StaticResource Label}" Text="Soporte Feedbill" Margin="0,16,0,0"/>
                     <TextBlock Text="WhatsApp 11 7195-2121 · soporte vía ticket" FontSize="15"/>
+                    <TextBlock Style="{StaticResource Label}" Text="Log" Margin="0,16,0,4"/>
+                    <TextBox x:Name="LogBox" Height="260" Width="900" HorizontalAlignment="Left" IsReadOnly="True" FontFamily="Consolas" FontSize="12"
+                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" Background="#111" Foreground="#DDD" Padding="8"/>
                 </StackPanel>
             </TabItem>
         </TabControl>
