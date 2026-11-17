@@ -86,6 +86,19 @@ public partial class MainWindow
 
     private readonly Dictionary<SensorBox, Rectangle> _sensorRects = [];
     private readonly Dictionary<string, Rectangle> _zoneRects = [];
+    private readonly List<(string Cover, Rectangle Rect)> _coverRects = [];
+    private static readonly Brush CoverFill = Frozen(Color.FromArgb(70, 0xF0, 0x8C, 0x00));
+    private static readonly Brush CoverStroke = Frozen(Color.FromRgb(0xF0, 0x8C, 0x00));
+
+    // Las tapas de acceso no tienen sensor propio: al abrirlas se separan las mitades de los sensores ópticos de esa
+    // zona y quedan todos tapados a la vez. Medido en el BNE-S110M el 17/11/2026.
+    private static readonly string[] SuperiorKeys = ["TurnRightSensor", "TurnLeftSensor", "RejectCountSensor", "RejectCheckSensor"];
+    private static readonly string[] FrontalKeys = ["CISRightSensor", "CISLeftSensor", "ThersoldSensor"];
+    private static readonly (string Cover, double X1, double Y1, double X2, double Y2)[] CoverAreas =
+    [
+        ("Superior", 55, 240, 140, 305), ("Superior", 155, 133, 330, 205),
+        ("Frontal", 22, 105, 168, 250),
+    ];
     private readonly DispatcherTimer _sensorTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private bool _sensorBusy;
 
@@ -108,6 +121,17 @@ public partial class MainWindow
             SensorCanvas.Children.Add(r);
             _zoneRects[z.ErrorKey] = r;
         }
+        foreach (var c in CoverAreas)
+        {
+            var r = new Rectangle
+            {
+                Width = c.X2 - c.X1, Height = c.Y2 - c.Y1, RadiusX = 8, RadiusY = 8, Fill = CoverFill, Stroke = CoverStroke,
+                StrokeThickness = 3, StrokeDashArray = [4, 2], Visibility = Visibility.Collapsed, IsHitTestVisible = false,
+            };
+            Canvas.SetLeft(r, c.X1); Canvas.SetTop(r, c.Y1);
+            SensorCanvas.Children.Add(r);
+            _coverRects.Add((c.Cover, r));
+        }
         foreach (var b in Boxes)
         {
             var r = new Rectangle { Width = b.Size, Height = b.Size, Fill = NoDataBrush, ToolTip = b.Name };
@@ -123,6 +147,7 @@ public partial class MainWindow
     {
         foreach (var r in _sensorRects.Values) r.Fill = NoDataBrush;
         foreach (var r in _zoneRects.Values) r.Visibility = Visibility.Collapsed;
+        foreach (var (_, r) in _coverRects) r.Visibility = Visibility.Collapsed;
         SensorTimeText.Text = "";
         SensorCoverText.Text = "—";
         ShowXfsSensorInfo();
@@ -152,7 +177,15 @@ public partial class MainWindow
         foreach (var (key, r) in _zoneRects)
             r.Visibility = s.Errors.TryGetValue(key, out bool on) && on ? Visibility.Visible : Visibility.Collapsed;
 
-        var errs = s.Errors.Where(e => e.Value).Select(e => ErrorNames.GetValueOrDefault(e.Key, e.Key)).ToList();
+        bool supOpen = SuperiorKeys.All(k => s.Sensors.GetValueOrDefault(k));
+        bool froOpen = FrontalKeys.All(k => s.Sensors.GetValueOrDefault(k));
+        foreach (var (c, r) in _coverRects)
+            r.Visibility = (c == "Superior" ? supOpen : froOpen) ? Visibility.Visible : Visibility.Collapsed;
+
+        var errs = new List<string>();
+        if (supOpen) errs.Add("Tapa superior abierta: verificar que no queden billetes atascados y cerrar la tapa");
+        if (froOpen) errs.Add("Tapa frontal abierta: verificar que no queden billetes atascados y cerrar la tapa");
+        errs.AddRange(s.Errors.Where(e => e.Value).Select(e => ErrorNames.GetValueOrDefault(e.Key, e.Key)));
         SensorErrText.Foreground = errs.Count > 0 ? Bad() : Ok();
         SensorErrText.Text = errs.Count > 0 ? string.Join("\n", errs) : "Sin atascos ni errores";
 
@@ -165,7 +198,8 @@ public partial class MainWindow
         int Cab(string k) => s.Cabinet.TryGetValue(k, out int v) ? v : -1;
         var cov = new List<string>
         {
-            coverUp ? "Tapa superior del validador: ABIERTA" : "Tapa superior del validador: cerrada",
+            "Tapa superior: " + (supOpen || coverUp ? "ABIERTA — verificar atascos y cerrarla" : "cerrada"),
+            "Tapa frontal: " + (froOpen ? "ABIERTA — verificar atascos y cerrarla" : "cerrada"),
             "Compuerta de escrow: " + (s.Gates.EscrowFault ? "ANOMALÍA" : s.Gates.EscrowOpen ? "abierta" : "cerrada") +
                 " · traba " + (s.Sensors.GetValueOrDefault("LockCloseSensor") ? "cerrada" : s.Sensors.GetValueOrDefault("LockOpenSensor") ? "abierta" : "sin posición"),
             "Compuerta de caída: " + (s.Gates.DropDoorFault ? "ANOMALÍA" : s.Gates.DropDoorOpen ? "abierta" : "cerrada"),
@@ -174,7 +208,7 @@ public partial class MainWindow
             $"Bolsa casi llena: {Cab("AlmostFull")} · bolsa llena: {Cab("Full")} · vibración: {Cab("Shake")}",
         };
         SensorCoverText.Text = string.Join("\n", cov);
-        SensorCoverText.Foreground = coverUp ? Bad() : (Brush)FindResource("Dark");
+        SensorCoverText.Foreground = coverUp || supOpen || froOpen ? Bad() : (Brush)FindResource("Dark");
 
         var g = s.Gates;
         string proc = g.Process >= 0 && g.Process < ProcessNames.Length ? ProcessNames[g.Process] : $"estado {g.Process}";

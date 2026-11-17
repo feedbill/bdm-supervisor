@@ -157,7 +157,9 @@
                             <Rectangle Width="18" Height="18" Fill="#D1333B" Opacity="0.85" Margin="0,0,6,0"/>
                             <TextBlock Text="Tapado" FontSize="14" VerticalAlignment="Center" Margin="0,0,18,0"/>
                             <Rectangle Width="18" Height="18" Stroke="#D1333B" StrokeThickness="3" Fill="#33D1333B" RadiusX="4" RadiusY="4" Margin="0,0,6,0"/>
-                            <TextBlock Text="Atasco / error" FontSize="14" VerticalAlignment="Center"/>
+                            <TextBlock Text="Atasco / error" FontSize="14" VerticalAlignment="Center" Margin="0,0,18,0"/>
+                            <Rectangle Width="18" Height="18" Stroke="#F08C00" StrokeThickness="3" StrokeDashArray="2,1" Fill="#46F08C00" RadiusX="4" RadiusY="4" Margin="0,0,6,0"/>
+                            <TextBlock Text="Tapa abierta" FontSize="14" VerticalAlignment="Center"/>
                         </StackPanel>
                         <TextBlock FontSize="12" Foreground="{StaticResource Muted}" Margin="4,4,0,0" Text="Pase el mouse sobre cada sensor para ver su nombre."/>
                     </StackPanel>
