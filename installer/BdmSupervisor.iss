@@ -1,6 +1,6 @@
 ﻿; BDM-500 Supervisor - instalador Feedbill (Inno Setup 6)
 #define AppName "BDM-500 Supervisor"
-#define AppVersion "0.2.2"
+#define AppVersion "0.3.0"
 #define AppPublisher "Feedbill"
 #define AppExe "BdmSupervisor.exe"
 #define SrcDir "C:\feedbill\BdmSupervisor"

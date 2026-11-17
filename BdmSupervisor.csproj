@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -14,7 +14,7 @@
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     <AssemblyName>BdmSupervisor</AssemblyName>
     <RootNamespace>BdmSupervisor</RootNamespace>
-    <Version>0.2.2</Version>
+    <Version>0.3.0</Version>
     <Company>Feedbill</Company>
     <Product>BDM-500 Supervisor</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -31,6 +31,7 @@
 
   <ItemGroup>
     <Resource Include="Resources\bdm500.png" />
+    <Resource Include="Resources\bne_s110m.png" />
   </ItemGroup>
 
   <ItemGroup>

@@ -43,6 +43,15 @@ public sealed class MockDeviceService : IDeviceService
     public GateStatus SetEscrowGate(bool open) { Require(); NativeActive = true; Delay(1300); _escrowOpen = open; return Gates(); }
     public GateStatus SetDropDoor(bool open) { Require(); NativeActive = true; Delay(2400); _dropOpen = open; return Gates(); }
     public GateStatus TestFlutter(int cycles) { Require(); NativeActive = true; Delay(2400 * cycles); return Gates(); }
+    private int _tick;
+    public SensorSnapshot ReadSensors()
+    {
+        Require(); NativeActive = true; _tick++;
+        var sensors = NativeBne.SorterNames.ToDictionary(n => n, n => n is "ShutterSensorClose" or "DropDoorCloseSensor" or "LockCloseSensor" or "TurnRightSensor" or "TurnLeftSensor");
+        var errors = NativeBne.MachineNames.ToDictionary(n => n, n => n == "TurnJamErr" && _tick % 4 == 0);
+        var expand = NativeBne.ExpandNames.ToDictionary(n => n, n => false);
+        return new SensorSnapshot(Gates(), sensors, errors, expand, 2, DateTime.Now, NativeBne.CabinetNames.ToDictionary(n => n, n => n == "InPosition" ? 1 : 0));
+    }
     public void EndNative() { Delay(1500); NativeActive = false; _escrowOpen = _dropOpen = false; }
     public DepositCount CountDeposit(CancellationToken ct, Action<string> progress, int waitSeconds = 120)
     {

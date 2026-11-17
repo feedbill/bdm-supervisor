@@ -37,6 +37,8 @@ public interface IDeviceService : IDisposable
     GateStatus SetDropDoor(bool open);
     /// <summary>Aleteo: abre y cierra la compuerta de caída la cantidad de veces indicada.</summary>
     GateStatus TestFlutter(int cycles);
+    /// <summary>Lee sensores y errores de máquina con el SDK (entra en mantenimiento directo si hace falta).</summary>
+    SensorSnapshot ReadSensors();
     /// <summary>Cierra el SDK y devuelve el equipo al Service Provider.</summary>
     void EndNative();
     /// <summary>CashInStart y espera a que haya billetes en la boca (no da error si está vacía). Devuelve lo contado; el depósito queda abierto.</summary>

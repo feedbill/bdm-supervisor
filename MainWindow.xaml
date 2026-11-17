@@ -137,6 +137,55 @@
                 </Grid>
             </TabItem>
 
+            <!-- SENSORES -->
+            <TabItem Header="Sensores" x:Name="SensorTab">
+                <Grid Margin="24">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <Viewbox Height="540" Stretch="Uniform" HorizontalAlignment="Left">
+                            <Grid Width="352" Height="383">
+                                <Image Source="pack://application:,,,/Resources/bne_s110m.png" Stretch="Fill"/>
+                                <Canvas x:Name="SensorCanvas" Width="352" Height="383"/>
+                            </Grid>
+                        </Viewbox>
+                        <StackPanel Orientation="Horizontal" Margin="4,10,0,0">
+                            <Rectangle Width="18" Height="18" Fill="#3C78D8" Opacity="0.8" Margin="0,0,6,0"/>
+                            <TextBlock Text="Libre" FontSize="14" VerticalAlignment="Center" Margin="0,0,18,0"/>
+                            <Rectangle Width="18" Height="18" Fill="#D1333B" Opacity="0.85" Margin="0,0,6,0"/>
+                            <TextBlock Text="Tapado" FontSize="14" VerticalAlignment="Center" Margin="0,0,18,0"/>
+                            <Rectangle Width="18" Height="18" Stroke="#D1333B" StrokeThickness="3" Fill="#33D1333B" RadiusX="4" RadiusY="4" Margin="0,0,6,0"/>
+                            <TextBlock Text="Atasco / error" FontSize="14" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock FontSize="12" Foreground="{StaticResource Muted}" Margin="4,4,0,0" Text="Pase el mouse sobre cada sensor para ver su nombre."/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="28,0,0,0">
+                        <TextBlock Style="{StaticResource H1}" Text="Sensores y atascos del validador"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="13" Foreground="{StaticResource Muted}" Margin="0,0,0,8"
+                                   Text="La lectura en vivo usa el SDK del validador: mientras está activa, el Service Provider queda detenido. Al terminar pulse «Volver a operación normal»."/>
+                        <WrapPanel x:Name="SensorPanel" IsEnabled="False">
+                            <Button Content="Leer sensores" Click="ReadSensors_Click" Style="{StaticResource Primary}"/>
+                            <CheckBox x:Name="AutoSensors" Content="Actualizar cada 1 segundo" VerticalAlignment="Center" Margin="12,0" FontSize="15"
+                                      Checked="AutoSensors_Changed" Unchecked="AutoSensors_Changed"/>
+                            <Button x:Name="SensorNormalBtn" Content="Volver a operación normal" Click="EndNative_Click" MinWidth="230" Visibility="Collapsed"/>
+                        </WrapPanel>
+                        <TextBlock x:Name="SensorHint" FontSize="13" Foreground="{StaticResource Warn}" Margin="6,4,0,8"
+                                   Text="Entre en modo supervisor para leer los sensores."/>
+                        <TextBlock Style="{StaticResource Label}" Text="Estado del validador"/>
+                        <TextBlock x:Name="SensorProcText" Style="{StaticResource Value}" Text="Sin lectura" TextWrapping="Wrap"/>
+                        <TextBlock Style="{StaticResource Label}" Text="Atascos y errores"/>
+                        <TextBlock x:Name="SensorErrText" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,2,0,10" Text="—"/>
+                        <TextBlock Style="{StaticResource Label}" Text="Sensores tapados"/>
+                        <TextBlock x:Name="SensorCoveredText" FontSize="14" TextWrapping="Wrap" Margin="0,2,0,10" Text="—"/>
+                        <TextBlock Style="{StaticResource Label}" Text="Tapas, puertas y bolsa (para retirar atascos)"/>
+                        <TextBlock x:Name="SensorCoverText" FontSize="14" TextWrapping="Wrap" Margin="0,2,0,10" Text="—"/>
+                        <TextBlock x:Name="SensorTimeText" Style="{StaticResource Label}"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
             <!-- MANTENIMIENTO -->
             <TabItem Header="Mantenimiento">
                 <StackPanel Margin="24" MaxWidth="700" HorizontalAlignment="Left">

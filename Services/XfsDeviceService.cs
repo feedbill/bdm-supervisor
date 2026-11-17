@@ -84,6 +84,8 @@ public sealed class XfsDeviceService : IDeviceService
         return n.GetGates();
     }
 
+    public SensorSnapshot ReadSensors() => Native().GetSensors();
+
     public void EndNative()
     {
         if (_native == null) return;

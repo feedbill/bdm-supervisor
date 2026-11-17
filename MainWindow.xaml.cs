@@ -36,6 +36,7 @@ public partial class MainWindow : Window
             LogBox.ScrollToEnd();
         });
         CfgText.Text = $"Mode={_cfg.Mode}\nCIM={_cfg.CimLogicalName}\nVDM={_cfg.VdmLogicalName}\nLogs={_cfg.LogDir}\nSP logs={EffectiveSpLogDir()}\nSNBC tool={EffectiveSnbcTool()}";
+        InitSensors();
         Loaded += async (_, _) => { CheckTestTool(); await ConnectAsync(); };
         Closed += (_, _) => { _dev?.Dispose(); _events.Dispose(); };
     }
@@ -137,6 +138,8 @@ public partial class MainWindow : Window
         GatePanel.IsEnabled = active;
         UpdateGateUi();
         DiagHint.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
+        SensorPanel.IsEnabled = active;
+        SensorHint.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
     }
 
     // ---------- Diagnóstico ----------
@@ -149,6 +152,8 @@ public partial class MainWindow : Window
         EscrowBtn.Content = _escrowOpen ? "Cerrar escrow" : "Abrir escrow";
         DropBtn.Content = _dropOpen ? "Cerrar compuerta de caída" : "Abrir compuerta de caída";
         NormalBtn.Visibility = native ? Visibility.Visible : Visibility.Collapsed;
+        SensorNormalBtn.Visibility = native ? Visibility.Visible : Visibility.Collapsed;
+        if (!native) { AutoSensors.IsChecked = false; ClearSensors(); }
     }
 
     private bool ConfirmNative()
