@@ -138,12 +138,19 @@ public partial class MainWindow : Window
         GatePanel.IsEnabled = active;
         UpdateGateUi();
         DiagHint.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
-        SensorPanel.IsEnabled = active;
-        SensorHint.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
     }
 
     // ---------- Diagnóstico ----------
-    private async void Reset_Click(object s, RoutedEventArgs e) { await Run("Reset en curso (puede tardar)...", () => _dev!.Reset()); await RefreshAsync(); }
+    private async void Reset_Click(object s, RoutedEventArgs e) { if (!await EnsureNormalAsync()) return; await Run("Reset en curso (puede tardar)...", () => _dev!.Reset()); await RefreshAsync(); }
+
+    /// <summary>Las pruebas XFS necesitan el Service Provider: si hay mantenimiento directo activo, se vuelve antes a operación normal.</summary>
+    private async Task<bool> EnsureNormalAsync()
+    {
+        if (_dev?.NativeActive != true) return true;
+        await Run("Volviendo a operación normal antes de la prueba (el Service Provider tarda hasta un minuto)...", () => _dev!.EndNative());
+        UpdateGateUi();
+        return _dev?.NativeActive != true;
+    }
     // ---------- Compuertas y aleteo (mantenimiento directo con el SDK) ----------
     private void UpdateGateUi()
     {
@@ -152,8 +159,7 @@ public partial class MainWindow : Window
         EscrowBtn.Content = _escrowOpen ? "Cerrar escrow" : "Abrir escrow";
         DropBtn.Content = _dropOpen ? "Cerrar compuerta de caída" : "Abrir compuerta de caída";
         NormalBtn.Visibility = native ? Visibility.Visible : Visibility.Collapsed;
-        SensorNormalBtn.Visibility = native ? Visibility.Visible : Visibility.Collapsed;
-        if (!native) { AutoSensors.IsChecked = false; ClearSensors(); }
+        if (!native) ClearSensors();
     }
 
     private bool ConfirmNative()
@@ -207,6 +213,7 @@ public partial class MainWindow : Window
 
     private async void TestDeposit_Click(object s, RoutedEventArgs e)
     {
+        if (!await EnsureNormalAsync()) return;
         using var cts = new CancellationTokenSource();
         var msg = new TextBlock { Text = "Coloque los billetes en la boca de depósito…", FontSize = 16, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 16) };
         var cancel = new Button { Content = "Cancelar", MinWidth = 140, HorizontalAlignment = HorizontalAlignment.Right };
@@ -247,6 +254,7 @@ public partial class MainWindow : Window
 
     private async void BagExchange_Click(object s, RoutedEventArgs e)
     {
+        if (!await EnsureNormalAsync()) return;
         if (MessageBox.Show("Esto pone en cero los contadores de la bolsa. Hágalo solo después de retirar la bolsa llena y colocar la nueva. ¿Continuar?",
                 "Cambio de bolsa", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         await Run("Registrando cambio de bolsa...", () => _dev!.BagExchange());
@@ -254,6 +262,7 @@ public partial class MainWindow : Window
     }
     private async void Caps_Click(object s, RoutedEventArgs e)
     {
+        if (!await EnsureNormalAsync()) return;
         string caps = "";
         await Run("Leyendo capabilities...", () => caps = _dev!.GetCapabilities());
         _log.Info("CAPABILITIES: " + caps);

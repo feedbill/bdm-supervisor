@@ -101,6 +101,7 @@ public partial class MainWindow
     ];
     private readonly DispatcherTimer _sensorTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private bool _sensorBusy;
+    private int _sensorErrors;
 
     private static Brush Frozen(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
 
@@ -140,8 +141,10 @@ public partial class MainWindow
             _sensorRects[b] = r;
         }
         InitTiles();
+        // Lectura en vivo permanente: cada 1 s mientras el mantenimiento directo está activo y se ve la pestaña Supervisor
         _sensorTimer.Tick += async (_, _) => await PollSensorsAsync();
-        Tabs.SelectionChanged += (s, e) => { if (e.Source == Tabs && Tabs.SelectedItem == SensorTab) ShowXfsSensorInfo(); };
+        _sensorTimer.Start();
+        Tabs.SelectionChanged += (s, e) => { if (e.Source == Tabs && Tabs.SelectedItem == SupervisorTab) ShowXfsSensorInfo(); };
     }
 
     // ---------- Indicadores tipo botón: verde = libre, rojo = verificar ----------
@@ -156,12 +159,12 @@ public partial class MainWindow
     {
         foreach (var n in TileNames)
         {
-            var title = new TextBlock { Text = n, Foreground = Brushes.White, FontSize = 15, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
-            var state = new TextBlock { Text = "—", Foreground = Brushes.White, FontSize = 13, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) };
+            var title = new TextBlock { Text = n, Foreground = Brushes.White, FontSize = 14, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+            var state = new TextBlock { Text = "Sin lectura en vivo", Foreground = Brushes.White, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 0) };
             var box = new Border
             {
-                Width = 168, MinHeight = 62, CornerRadius = new CornerRadius(8), Background = TileOff, Padding = new Thickness(12, 8, 12, 8),
-                Margin = new Thickness(0, 0, 8, 8), Child = new StackPanel { Children = { title, state } },
+                MinHeight = 44, CornerRadius = new CornerRadius(7), Background = TileOff, Padding = new Thickness(10, 5, 10, 5),
+                Margin = new Thickness(0, 0, 0, 6), Child = new StackPanel { Children = { title, state } },
             };
             SensorTiles.Children.Add(box);
             _tiles[n] = (box, state);
@@ -198,7 +201,7 @@ public partial class MainWindow
 
     private void ClearTiles()
     {
-        foreach (var (box, state) in _tiles.Values) { box.Background = TileOff; state.Text = "—"; box.ToolTip = null; }
+        foreach (var (box, state) in _tiles.Values) { box.Background = TileOff; state.Text = "Sin lectura en vivo"; box.ToolTip = "Pulse «Leer sensores en vivo»"; }
     }
 
     private void ClearSensors()
@@ -218,7 +221,7 @@ public partial class MainWindow
         if (_dev?.NativeActive == true) return;
         SensorCoveredText.Text = "—";
         if (_lastStatus is null) { SensorProcText.Text = "Sin lectura"; SensorErrText.Text = "—"; return; }
-        SensorProcText.Text = $"Por XFS: {_lastStatus.Device} (lectura de sensores en vivo: pulse «Leer sensores»)";
+        SensorProcText.Text = $"Por XFS: {_lastStatus.Device} (para ver sensores en vivo: «Leer sensores en vivo»)";
         var (code, detail, jam) = ParseLastError(_lastStatus.Extra);
         bool hasErr = code.Trim('0', '-').Length > 0;
         SensorErrText.Foreground = hasErr ? Bad() : Ok();
@@ -257,18 +260,14 @@ public partial class MainWindow
         int Cab(string k) => s.Cabinet.TryGetValue(k, out int v) ? v : -1;
         var cov = new List<string>
         {
-            "Tapa frontal: " + (froOpen ? "ABIERTA — verificar atascos y cerrarla" : "cerrada"),
-            "Tapa trasera: " + (traOpen ? "ABIERTA — verificar atascos y cerrarla" : "cerrada"),
-            "Tapa superior (aviso del SDK): " + (coverUp ? "ABIERTA" : "cerrada"),
-            "Compuerta de escrow: " + (s.Gates.EscrowFault ? "ANOMALÍA" : s.Gates.EscrowOpen ? "abierta" : "cerrada") +
-                " · traba " + (s.Sensors.GetValueOrDefault("LockCloseSensor") ? "cerrada" : s.Sensors.GetValueOrDefault("LockOpenSensor") ? "abierta" : "sin posición"),
-            "Compuerta de caída: " + (s.Gates.DropDoorFault ? "ANOMALÍA" : s.Gates.DropDoorOpen ? "abierta" : "cerrada"),
+            "Traba de la compuerta de escrow: " + (s.Sensors.GetValueOrDefault("LockCloseSensor") ? "cerrada" : s.Sensors.GetValueOrDefault("LockOpenSensor") ? "abierta" : "sin posición"),
             $"Bolsa en posición: {(Cab("InPosition") == 1 ? "sí" : "no")}",
             $"Puerta de la caja fuerte (sensor): {Cab("SafeShutter")} · traba de la puerta: {Cab("ShutterLock")}",
             $"Bolsa casi llena: {Cab("AlmostFull")} · bolsa llena: {Cab("Full")} · vibración: {Cab("Shake")}",
         };
         SensorCoverText.Text = string.Join("\n", cov);
-        SensorCoverText.Foreground = coverUp || froOpen || traOpen ? Bad() : (Brush)FindResource("Dark");
+        if (coverUp) cov.Insert(0, "Tapa superior (aviso del SDK): ABIERTA — verificar atascos y cerrarla");
+        SensorCoverText.Foreground = coverUp ? Bad() : (Brush)FindResource("Dark");
         ShowTiles(s, froOpen, traOpen);
 
         var g = s.Gates;
@@ -296,35 +295,21 @@ public partial class MainWindow
         if (snap != null) ShowSensors(snap);
     }
 
-    private async void AutoSensors_Changed(object s, RoutedEventArgs e)
-    {
-        if (AutoSensors.IsChecked != true) { _sensorTimer.Stop(); return; }
-        if (_dev?.NativeActive != true)
-        {
-            if (!ConfirmNative()) { AutoSensors.IsChecked = false; return; }
-            SensorSnapshot? snap = null;
-            await Run("Leyendo sensores del validador...", () => snap = _dev!.ReadSensors());
-            UpdateGateUi();
-            if (snap is null) { AutoSensors.IsChecked = false; return; }
-            ShowSensors(snap);
-        }
-        _sensorTimer.Start();
-    }
-
     private async Task PollSensorsAsync()
     {
-        if (_sensorBusy || !IsEnabled || _dev?.NativeActive != true || Tabs.SelectedItem != SensorTab) return;
+        if (_sensorBusy || !IsEnabled || _dev?.NativeActive != true || Tabs.SelectedItem != SupervisorTab) return;
         _sensorBusy = true;
         try
         {
             var dev = _dev;
             var snap = await Task.Run(() => dev.ReadSensors());
+            _sensorErrors = 0;
             ShowSensors(snap);
         }
         catch (Exception ex)
         {
-            AutoSensors.IsChecked = false;
-            _log.Error("Lectura de sensores: " + ex.Message);
+            _sensorErrors++;
+            if (_sensorErrors == 1 || _sensorErrors % 30 == 0) _log.Error("Lectura de sensores: " + ex.Message);
             StatusBar.Text = "Error leyendo sensores: " + ex.Message;
         }
         finally { _sensorBusy = false; }
