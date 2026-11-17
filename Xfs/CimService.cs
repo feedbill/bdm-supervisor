@@ -10,6 +10,9 @@ public sealed record CimStatus(
 
 public sealed record CimPosition(string Position, string Shutter, string PositionStatus, string Transport, string TransportStatus);
 
+/// <summary>Billetes contados de un tipo en una operación de depósito.</summary>
+public sealed record CimNoteCount(int NoteId, string Currency, long Value, int Count);
+
 /// <summary>Una unidad lógica/física de WFS_INF_CIM_CASH_UNIT_INFO (bolsa, escrow, reject...).</summary>
 public sealed record CimCashUnit(int Number, string Type, string UnitId, int Count, int CashInCount, int Maximum, string Status);
 
@@ -95,7 +98,7 @@ public sealed class CimService : IDisposable
                 XfsConst.Name(XfsConst.SafeDoorNames, st.fwSafeDoor),
                 XfsConst.Name(XfsConst.AcceptorNames, st.fwAcceptor),
                 XfsConst.Name(XfsConst.StackerNames, st.fwIntermediateStacker),
-                st.fwStackerItems switch { 0 => "CUSTOMERACCESS", 1 => "NOCUSTOMERACCESS", 2 => "ACCESSUNKNOWN", 3 => "NOITEMS", _ => "?" },
+                st.fwStackerItems switch { 0 => "CUSTOMERACCESS", 1 => "NOCUSTOMERACCESS", 2 => "ACCESSUNKNOWN", 4 => "NOITEMS", _ => "?" },
                 XfsConst.Name(XfsConst.BnrNames, st.fwBanknoteReader),
                 st.bDropBox != 0, positions, extra, res.tsTimestamp.ToDateTime());
         }
@@ -170,7 +173,8 @@ public sealed class CimService : IDisposable
         XfsSession.FreeResult(_s.Execute(cmd));
     }
 
-    public void CashInStart()
+    /// <summary>Inicia el depósito. Devuelve false si ya había uno activo (se continúa sobre ese).</summary>
+    public bool CashInStart()
     {
         // WFSCIMCASHINSTART: USHORT usTellerID; BOOL bUseRecycleUnits; WORD fwOutputPosition; WORD fwInputPosition;
         var buf = Marshal.AllocHGlobal(10);
@@ -178,16 +182,93 @@ public sealed class CimService : IDisposable
         {
             Marshal.WriteInt16(buf, 0, 0);
             Marshal.WriteInt32(buf, 2, 0);
-            Marshal.WriteInt16(buf, 6, 0);
-            Marshal.WriteInt16(buf, 8, 0);
+            Marshal.WriteInt16(buf, 6, 0);          // WFS_CIM_POSNULL
+            Marshal.WriteInt16(buf, 8, 0x0004);     // WFS_CIM_POSINCENTER (la que indica SNBC; INRIGHT da UNSUPPOSITION)
             XfsSession.FreeResult(_s.Execute(XfsConst.WFS_CMD_CIM_CASH_IN_START, buf));
+            return true;
+        }
+        catch (XfsException ex) when (ex.HResult2 == XfsConst.WFS_ERR_CIM_CASHINACTIVE)
+        {
+            _log.Warn("Ya había un depósito activo en el SP: se continúa sobre ese.");
+            return false;
         }
         finally { Marshal.FreeHGlobal(buf); }
     }
 
-    public void CashIn(uint? timeoutMs = 60000) => XfsSession.FreeResult(_s.Execute(XfsConst.WFS_CMD_CIM_CASH_IN, IntPtr.Zero, timeoutMs));
-    public void CashInEnd() => XfsSession.FreeResult(_s.Execute(XfsConst.WFS_CMD_CIM_CASH_IN_END));
-    public void CashInRollback() => XfsSession.FreeResult(_s.Execute(XfsConst.WFS_CMD_CIM_CASH_IN_ROLLBACK));
+    private Dictionary<int, (string Cur, long Val)>? _types;
+
+    /// <summary>Tabla NoteID → moneda/valor (WFS_INF_CIM_BANKNOTE_TYPES). Se lee una vez.</summary>
+    public IReadOnlyDictionary<int, (string Cur, long Val)> GetBanknoteTypes()
+    {
+        if (_types != null) return _types;
+        var d = new Dictionary<int, (string, long)>();
+        var r = _s.GetInfo(XfsConst.WFS_INF_CIM_BANKNOTE_TYPES);
+        try
+        {
+            // WFSCIMNOTETYPELIST: USHORT usNumOfNoteTypes; LPWFSCIMNOTETYPE *lppNoteTypes;
+            // WFSCIMNOTETYPE: USHORT usNoteID; CHAR cCurrencyID[3]; ULONG ulValues; USHORT usRelease; BOOL bConfigured;
+            var b = XfsSession.ReadResult(r).lpBuffer;
+            if (b != IntPtr.Zero)
+            {
+                int n = (ushort)Marshal.ReadInt16(b, 0);
+                var arr = Marshal.ReadIntPtr(b, 2);
+                for (int i = 0; i < n && arr != IntPtr.Zero; i++)
+                {
+                    var t = Marshal.ReadIntPtr(arr, i * IntPtr.Size);
+                    if (t == IntPtr.Zero) continue;
+                    d[(ushort)Marshal.ReadInt16(t, 0)] = (Marshal.PtrToStringAnsi(t + 2, 3) ?? "", (uint)Marshal.ReadInt32(t, 5));
+                }
+            }
+        }
+        finally { XfsSession.FreeResult(r); }
+        return _types = d;
+    }
+
+    // WFSCIMNOTENUMBERLIST: USHORT usNumOfNoteNumbers; LPWFSCIMNOTENUMBER *lppNoteNumber;  WFSCIMNOTENUMBER: USHORT usNoteID; ULONG ulCount;
+    private IReadOnlyList<CimNoteCount> ReadNoteList(IntPtr list)
+    {
+        var res = new List<CimNoteCount>();
+        if (list == IntPtr.Zero) return res;
+        int n = (ushort)Marshal.ReadInt16(list, 0);
+        var arr = Marshal.ReadIntPtr(list, 2);
+        if (arr == IntPtr.Zero) return res;
+        var types = GetBanknoteTypes();
+        for (int i = 0; i < n; i++)
+        {
+            var e = Marshal.ReadIntPtr(arr, i * IntPtr.Size);
+            if (e == IntPtr.Zero) continue;
+            int id = (ushort)Marshal.ReadInt16(e, 0);
+            int count = Marshal.ReadInt32(e, 2);
+            var t = types.TryGetValue(id, out var v) ? v : ("?", 0L);
+            res.Add(new CimNoteCount(id, t.Item1, t.Item2, count));
+        }
+        return res;
+    }
+
+    /// <summary>Cuenta lo que haya en la boca. Devuelve los billetes aceptados en esta pasada.</summary>
+    public IReadOnlyList<CimNoteCount> CashIn(uint? timeoutMs = 60000, bool quiet = false)
+    {
+        var r = _s.Execute(XfsConst.WFS_CMD_CIM_CASH_IN, IntPtr.Zero, timeoutMs, quiet);
+        try { return ReadNoteList(XfsSession.ReadResult(r).lpBuffer); }
+        finally { XfsSession.FreeResult(r); }
+    }
+
+    /// <summary>Acumulado del depósito en curso (WFS_INF_CIM_CASH_IN_STATUS): billetes aceptados y cantidad de rechazados.</summary>
+    public (IReadOnlyList<CimNoteCount> Notes, int Refused) GetCashInStatus()
+    {
+        var r = _s.GetInfo(XfsConst.WFS_INF_CIM_CASH_IN_STATUS);
+        try
+        {
+            // WFSCIMCASHINSTATUS: WORD wStatus; USHORT usNumOfRefused; LPWFSCIMNOTENUMBERLIST lpNoteNumberList; LPSTR lpszExtra;
+            var b = XfsSession.ReadResult(r).lpBuffer;
+            if (b == IntPtr.Zero) return (new List<CimNoteCount>(), 0);
+            return (ReadNoteList(Marshal.ReadIntPtr(b, 4)), (ushort)Marshal.ReadInt16(b, 2));
+        }
+        finally { XfsSession.FreeResult(r); }
+    }
+
+    public void CashInEnd() => XfsSession.FreeResult(_s.Execute(XfsConst.WFS_CMD_CIM_CASH_IN_END, IntPtr.Zero, 120000));
+    public void CashInRollback() => XfsSession.FreeResult(_s.Execute(XfsConst.WFS_CMD_CIM_CASH_IN_ROLLBACK, IntPtr.Zero, 120000));
 
     public void Retract()
     {

@@ -37,9 +37,21 @@ public sealed class MockDeviceService : IDeviceService
     public async Task ExitSupervisorAsync() { await Task.Delay(500); Mode = SupervisorMode.Inactive; _log.Info("Mock: VDM EXITED"); }
 
     public void Reset() { Require(); Delay(2500); _device = "ONLINE"; _log.Info("Mock: RESET ok"); }
-    public void OpenShutter() { Require(); Delay(300); _shutter = "OPEN"; }
-    public void CloseShutter() { Require(); Delay(300); _shutter = "CLOSED"; }
-    public void TestDeposit() { Require(); Delay(3000); _log.Info("Mock: test de depósito: 10 billetes contados, rollback ok"); }
+    private bool _escrowOpen, _dropOpen;
+    public bool NativeActive { get; private set; }
+    private GateStatus Gates() => new(_escrowOpen, _dropOpen, false, false, false, false, false, false, 2);
+    public GateStatus SetEscrowGate(bool open) { Require(); NativeActive = true; Delay(1300); _escrowOpen = open; return Gates(); }
+    public GateStatus SetDropDoor(bool open) { Require(); NativeActive = true; Delay(2400); _dropOpen = open; return Gates(); }
+    public GateStatus TestFlutter(int cycles) { Require(); NativeActive = true; Delay(2400 * cycles); return Gates(); }
+    public void EndNative() { Delay(1500); NativeActive = false; _escrowOpen = _dropOpen = false; }
+    public DepositCount CountDeposit(CancellationToken ct, Action<string> progress, int waitSeconds = 120)
+    {
+        Require();
+        for (int i = 3; i > 0; i--) { ct.ThrowIfCancellationRequested(); progress($"Coloque los billetes en la boca de depósito… ({i} s)"); Delay(1000); }
+        return new DepositCount([new CimNoteCount(569, "ARS", 10000, 8), new CimNoteCount(570, "ARS", 20000, 2)], 0);
+    }
+    public void ConfirmDeposit() { Require(); Delay(1500); _bagCount += 10; }
+    public void ReturnDeposit() { Require(); Delay(1000); }
     public void Retract() { Require(); Delay(1500); _bagCount += 2; }
     public void BagExchange() { Require(); Delay(1000); _bagCount = 0; _log.Info("Mock: cambio de bolsa, contadores en 0"); }
 

@@ -75,14 +75,14 @@ public sealed class XfsSession : IDisposable
     }
 
     /// <summary>WFSExecute síncrono. Devuelve el WFSRESULT; el llamador debe liberar con FreeResult.</summary>
-    public IntPtr Execute(uint command, IntPtr cmdData = default, uint? timeoutMs = null)
+    public IntPtr Execute(uint command, IntPtr cmdData = default, uint? timeoutMs = null, bool quiet = false)
     {
-        _log.Info($"[{LogicalName}] Execute {command}");
+        if (!quiet) _log.Info($"[{LogicalName}] Execute {command}");
         int hr = XfsNative.WFSExecute(_hService, command, cmdData, timeoutMs ?? _timeout, out var result);
         if (hr != XfsConst.WFS_SUCCESS)
         {
             if (result != IntPtr.Zero) XfsNative.WFSFreeResult(result);
-            _log.Error($"[{LogicalName}] Execute {command} → {XfsConst.ErrorName(hr)}");
+            if (!quiet) _log.Error($"[{LogicalName}] Execute {command} → {XfsConst.ErrorName(hr)}");
             throw new XfsException(hr, $"WFSExecute({command})");
         }
         return result;
