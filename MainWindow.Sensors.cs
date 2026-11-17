@@ -282,8 +282,8 @@ public partial class MainWindow
         SensorProcText.Text = string.Join(" · ", parts);
         SensorTimeText.Text = $"Lectura: {s.Time:HH:mm:ss}";
         _escrowOpen = g.EscrowOpen; _dropOpen = g.DropDoorOpen;
-        EscrowBtn.Content = _escrowOpen ? "Cerrar escrow" : "Abrir escrow";
-        DropBtn.Content = _dropOpen ? "Cerrar compuerta de caída" : "Abrir compuerta de caída";
+        EscrowBtn.Content = _escrowOpen ? "CERRAR ESCROW" : "ABRIR ESCROW";
+        DropBtn.Content = _dropOpen ? "CERRAR COMPUERTA DE CAÍDA" : "ABRIR COMPUERTA DE CAÍDA";
     }
 
     private bool _liveWanted = true;

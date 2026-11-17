@@ -24,7 +24,7 @@
         <!-- Aviso TestTool -->
         <Border x:Name="TestToolBar" DockPanel.Dock="Top" Background="#FFF4D6" BorderBrush="#E0A100" BorderThickness="0,0,0,1" Padding="16,8" Visibility="Collapsed">
             <DockPanel>
-                <Button DockPanel.Dock="Right" Content="Reparar" Click="RepairTestTool_Click" MinHeight="32" MinWidth="110" Padding="12,4" Margin="12,0,0,0"/>
+                <Button DockPanel.Dock="Right" Content="REPARAR" Click="RepairTestTool_Click" MinHeight="32" MinWidth="110" Padding="12,4" Margin="12,0,0,0"/>
                 <TextBlock x:Name="TestToolText" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="13"/>
             </DockPanel>
         </Border>
@@ -68,7 +68,7 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <Button Content="Actualizar estado" Click="Refresh_Click" Style="{StaticResource Primary}" Margin="0,12,0,0" HorizontalAlignment="Left"/>
+                        <Button Content="ACTUALIZAR ESTADO" Click="Refresh_Click" Style="{StaticResource Primary}" Margin="0,12,0,0" HorizontalAlignment="Left"/>
                     </StackPanel>
                     <StackPanel Grid.Column="2">
                         <TextBlock Style="{StaticResource H1}" Text="Unidades de efectivo"/>
@@ -135,13 +135,13 @@
                                 </Setter>
                             </Style>
                         </UniformGrid.Resources>
-                        <Button x:Name="SupervisorBtn" Content="Entrar en modo supervisor" Click="SupervisorToggle_Click"/>
-                        <Button Content="Prueba de depósito" Click="TestDeposit_Click"/>
-                        <Button Content="Reset del equipo" Click="Reset_Click"/>
-                        <Button Content="Cambio de bolsa" Click="BagExchange_Click"/>
-                        <Button x:Name="EscrowBtn" Content="Abrir escrow" Click="ToggleEscrow_Click"/>
-                        <Button x:Name="DropBtn" Content="Abrir compuerta de caída" Click="ToggleDrop_Click"/>
-                        <Button Content="Probar aleteo" Click="Flutter_Click"/>
+                        <Button x:Name="SupervisorBtn" Content="ENTRAR EN MODO SUPERVISOR" Click="SupervisorToggle_Click"/>
+                        <Button Content="PRUEBA DE DEPÓSITO" Click="TestDeposit_Click"/>
+                        <Button Content="RESET DEL EQUIPO" Click="Reset_Click"/>
+                        <Button Content="CAMBIO DE BOLSA" Click="BagExchange_Click"/>
+                        <Button x:Name="EscrowBtn" Content="ABRIR ESCROW" Click="ToggleEscrow_Click"/>
+                        <Button x:Name="DropBtn" Content="ABRIR COMPUERTA DE CAÍDA" Click="ToggleDrop_Click"/>
+                        <Button Content="PROBAR ALETEO" Click="Flutter_Click"/>
                     </UniformGrid>
 
                     <!-- Centro: diagrama -->
@@ -196,18 +196,11 @@
             <TabItem Header="Mantenimiento">
                 <StackPanel Margin="24" HorizontalAlignment="Left">
                     <TextBlock Style="{StaticResource H1}" Text="Herramientas"/>
-                    <Button Content="Exportar bundle de diagnóstico (ZIP)" Style="{StaticResource Primary}" Click="Export_Click" HorizontalAlignment="Left" MinWidth="360"/>
+                    <Button Content="EXPORTAR BUNDLE DE DIAGNÓSTICO (ZIP)" Style="{StaticResource Primary}" Click="Export_Click" HorizontalAlignment="Left" MinWidth="360"/>
                     <TextBlock FontSize="13" Foreground="{StaticResource Muted}" Margin="6,0,0,16" TextWrapping="Wrap"
                                Text="Junta los logs de esta app, los del Service Provider SNBC y datos del equipo para enviarlos a soporte Feedbill."/>
-                    <Button Content="Abrir carpeta de logs" Click="OpenLogs_Click" HorizontalAlignment="Left" MinWidth="360"/>
-                    <Button Content="Leer capabilities del equipo" Click="Caps_Click" HorizontalAlignment="Left" MinWidth="360"/>
-                    <Button x:Name="SnbcToolBtn" Content="Abrir herramienta SNBC del validador (firmware / templates)" Click="SnbcTool_Click" HorizontalAlignment="Left" MinWidth="360"/>
-                    <TextBlock FontSize="13" Foreground="{StaticResource Muted}" Margin="6,0,0,16" TextWrapping="Wrap"
-                               Text="Requiere modo supervisor activo. La ruta del tool se configura en appsettings.json (Paths.SnbcToolPath)."/>
-                    <TextBlock Style="{StaticResource Label}" Text="Configuración" Margin="0,12,0,0"/>
-                    <TextBlock x:Name="CfgText" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"/>
-                    <TextBlock Style="{StaticResource Label}" Text="Soporte Feedbill" Margin="0,16,0,0"/>
-                    <TextBlock Text="WhatsApp 11 7195-2121 · soporte vía ticket" FontSize="15"/>
+                    <Button Content="ABRIR CARPETA DE LOGS" Click="OpenLogs_Click" HorizontalAlignment="Left" MinWidth="360"/>
+                    <Button Content="LEER CAPABILITIES DEL EQUIPO" Click="Caps_Click" HorizontalAlignment="Left" MinWidth="360"/>
                     <TextBlock Style="{StaticResource Label}" Text="Log" Margin="0,16,0,4"/>
                     <TextBox x:Name="LogBox" Height="260" Width="900" HorizontalAlignment="Left" IsReadOnly="True" FontFamily="Consolas" FontSize="12"
                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" Background="#111" Foreground="#DDD" Padding="8"/>

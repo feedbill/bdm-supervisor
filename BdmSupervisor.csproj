@@ -14,7 +14,7 @@
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     <AssemblyName>BdmSupervisor</AssemblyName>
     <RootNamespace>BdmSupervisor</RootNamespace>
-    <Version>0.5.1</Version>
+    <Version>0.5.2</Version>
     <Company>Feedbill</Company>
     <Product>BDM-500 Supervisor</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>

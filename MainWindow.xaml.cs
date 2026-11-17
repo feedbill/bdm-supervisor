@@ -35,7 +35,7 @@ public partial class MainWindow : Window
             LogBox.AppendText(line + Environment.NewLine);
             LogBox.ScrollToEnd();
         });
-        CfgText.Text = $"Mode={_cfg.Mode}\nCIM={_cfg.CimLogicalName}\nVDM={_cfg.VdmLogicalName}\nLogs={_cfg.LogDir}\nSP logs={EffectiveSpLogDir()}\nSNBC tool={EffectiveSnbcTool()}";
+        _log.Info($"Config: Mode={_cfg.Mode} CIM={_cfg.CimLogicalName} VDM={_cfg.VdmLogicalName} Logs={_cfg.LogDir} SP logs={EffectiveSpLogDir()}");
         InitSensors();
         Loaded += async (_, _) => { WindowState = WindowState.Maximized; CheckTestTool(); await ConnectAsync(); };
         Closing += OnClosingAsync;
@@ -167,7 +167,7 @@ public partial class MainWindow : Window
         bool active = _dev?.Mode == SupervisorMode.Active;
         ModeText.Text = active ? "SUPERVISOR ACTIVO" : "SUPERVISOR INACTIVO";
         ModeBadge.Background = active ? (Brush)FindResource("Brand") : (Brush)FindResource("Muted");
-        SupervisorBtn.Content = active ? "Salir del modo supervisor" : "Entrar en modo supervisor";
+        SupervisorBtn.Content = active ? "SALIR DEL MODO SUPERVISOR" : "ENTRAR EN MODO SUPERVISOR";
         SupervisorBtn.Background = active ? (Brush)FindResource("Dark") : (Brush)FindResource("Brand");
         SupervisorBtn.Foreground = Brushes.White;
         SupervisorBtn.BorderBrush = SupervisorBtn.Background;
@@ -199,8 +199,8 @@ public partial class MainWindow : Window
     {
         bool native = _dev?.NativeActive == true;
         if (!native) { _escrowOpen = false; _dropOpen = false; }
-        EscrowBtn.Content = _escrowOpen ? "Cerrar escrow" : "Abrir escrow";
-        DropBtn.Content = _dropOpen ? "Cerrar compuerta de caída" : "Abrir compuerta de caída";
+        EscrowBtn.Content = _escrowOpen ? "CERRAR ESCROW" : "ABRIR ESCROW";
+        DropBtn.Content = _dropOpen ? "CERRAR COMPUERTA DE CAÍDA" : "ABRIR COMPUERTA DE CAÍDA";
         if (!native) ClearSensors();
     }
 
@@ -253,7 +253,7 @@ public partial class MainWindow : Window
     {
         using var cts = new CancellationTokenSource();
         var msg = new TextBlock { Text = "Coloque los billetes en la boca de depósito…", FontSize = 16, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 16) };
-        var cancel = new Button { Content = "Cancelar", MinWidth = 140, HorizontalAlignment = HorizontalAlignment.Right };
+        var cancel = new Button { Content = "CANCELAR", MinWidth = 140, HorizontalAlignment = HorizontalAlignment.Right };
         cancel.Click += (_, _) => { cts.Cancel(); cancel.IsEnabled = false; msg.Text = "Cancelando…"; };
         var panel = new StackPanel { Margin = new Thickness(24) };
         panel.Children.Add(msg); panel.Children.Add(cancel);
