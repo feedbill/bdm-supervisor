@@ -92,12 +92,12 @@ public partial class MainWindow
 
     // Las tapas de acceso no tienen sensor propio: al abrirlas se separan las mitades de los sensores ópticos de esa
     // zona y quedan todos tapados a la vez. Medido en el BNE-S110M el 17/11/2026.
-    private static readonly string[] SuperiorKeys = ["TurnRightSensor", "TurnLeftSensor", "RejectCountSensor", "RejectCheckSensor"];
-    private static readonly string[] FrontalKeys = ["CISRightSensor", "CISLeftSensor", "ThersoldSensor"];
+    private static readonly string[] FrontalKeys = ["TurnRightSensor", "TurnLeftSensor", "RejectCountSensor", "RejectCheckSensor"];
+    private static readonly string[] TraseraKeys = ["CISRightSensor", "CISLeftSensor", "ThersoldSensor"];
     private static readonly (string Cover, double X1, double Y1, double X2, double Y2)[] CoverAreas =
     [
-        ("Superior", 55, 240, 140, 305), ("Superior", 155, 133, 330, 205),
-        ("Frontal", 22, 105, 168, 250),
+        ("Frontal", 55, 240, 140, 305), ("Frontal", 155, 133, 330, 205),
+        ("Trasera", 22, 105, 168, 250),
     ];
     private readonly DispatcherTimer _sensorTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private bool _sensorBusy;
@@ -139,12 +139,71 @@ public partial class MainWindow
             SensorCanvas.Children.Add(r);
             _sensorRects[b] = r;
         }
+        InitTiles();
         _sensorTimer.Tick += async (_, _) => await PollSensorsAsync();
         Tabs.SelectionChanged += (s, e) => { if (e.Source == Tabs && Tabs.SelectedItem == SensorTab) ShowXfsSensorInfo(); };
     }
 
+    // ---------- Indicadores tipo botón: verde = libre, rojo = verificar ----------
+    private static readonly string[] TileNames =
+        ["Tapa frontal", "Tapa trasera", "Hopper (entrada)", "Escrow", "Rechazo", "Transporte", "Compuerta escrow", "Compuerta de caída", "Antipesca"];
+    private readonly Dictionary<string, (Border Box, TextBlock State)> _tiles = [];
+    private static readonly Brush TileOk = Frozen(Color.FromRgb(0x2E, 0x9E, 0x5B));
+    private static readonly Brush TileBad = Frozen(Color.FromRgb(0xD1, 0x33, 0x3B));
+    private static readonly Brush TileOff = Frozen(Color.FromRgb(0xB8, 0xB8, 0xBE));
+
+    private void InitTiles()
+    {
+        foreach (var n in TileNames)
+        {
+            var title = new TextBlock { Text = n, Foreground = Brushes.White, FontSize = 15, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
+            var state = new TextBlock { Text = "—", Foreground = Brushes.White, FontSize = 13, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) };
+            var box = new Border
+            {
+                Width = 168, MinHeight = 62, CornerRadius = new CornerRadius(8), Background = TileOff, Padding = new Thickness(12, 8, 12, 8),
+                Margin = new Thickness(0, 0, 8, 8), Child = new StackPanel { Children = { title, state } },
+            };
+            SensorTiles.Children.Add(box);
+            _tiles[n] = (box, state);
+        }
+    }
+
+    private void SetTile(string name, bool bad, string okText, string badDetail)
+    {
+        var (box, state) = _tiles[name];
+        box.Background = bad ? TileBad : TileOk;
+        state.Text = bad ? "VERIFICAR · " + badDetail : okText;
+        box.ToolTip = bad ? badDetail : okText;
+    }
+
+    private void ShowTiles(SensorSnapshot s, bool froOpen, bool traOpen)
+    {
+        bool S(string k) => s.Sensors.GetValueOrDefault(k);
+        bool E(string k) => s.Errors.GetValueOrDefault(k);
+        var g = s.Gates;
+        SetTile("Tapa frontal", froOpen, "Cerrada", "abierta");
+        SetTile("Tapa trasera", traOpen, "Cerrada", "abierta");
+        SetTile("Hopper (entrada)", g.NotesInEntry || S("FeedSensor") || S("FeedPutSensor") || E("FeedJamErr") || E("FeedMotoErr"),
+            "Libre", E("FeedJamErr") ? "atasco en la alimentación" : "hay billetes en la boca");
+        SetTile("Escrow", g.NotesInEscrow || S("ExitCheckSensor") || S("ExitCountSensor") || E("OutcashJamErr"),
+            "Libre", E("OutcashJamErr") ? "billetes trabados" : "hay billetes en el escrow");
+        SetTile("Rechazo", g.NotesInReject || S("RejectCheckSensor") || S("RejectFullSensor") || S("RejectCountSensor") || E("BackcashJamErr"),
+            "Libre", E("BackcashJamErr") ? "billetes trabados" : S("RejectFullSensor") ? "boca de rechazo llena" : "hay billetes en el rechazo");
+        bool jam = E("PaperJamErr") || E("DataCollectJamErr") || E("TurnJamErr") || E("OutcashChanJamErr") || E("MainMotoErr");
+        SetTile("Transporte", g.NotesInTransport || jam, "Libre", jam ? "atasco en el transporte" : "hay billetes en el transporte");
+        SetTile("Compuerta escrow", g.EscrowFault || E("ShutterErr") || E("ShutterLockErr"), g.EscrowOpen ? "Abierta" : "Cerrada", "falla de la compuerta");
+        SetTile("Compuerta de caída", g.DropDoorFault || E("DropDoorErr"), g.DropDoorOpen ? "Abierta" : "Cerrada", "falla de la compuerta");
+        SetTile("Antipesca", s.Expand.Values.Any(v => v), "Libre", "sensor antipesca tapado");
+    }
+
+    private void ClearTiles()
+    {
+        foreach (var (box, state) in _tiles.Values) { box.Background = TileOff; state.Text = "—"; box.ToolTip = null; }
+    }
+
     private void ClearSensors()
     {
+        ClearTiles();
         foreach (var r in _sensorRects.Values) r.Fill = NoDataBrush;
         foreach (var r in _zoneRects.Values) r.Visibility = Visibility.Collapsed;
         foreach (var (_, r) in _coverRects) r.Visibility = Visibility.Collapsed;
@@ -177,14 +236,14 @@ public partial class MainWindow
         foreach (var (key, r) in _zoneRects)
             r.Visibility = s.Errors.TryGetValue(key, out bool on) && on ? Visibility.Visible : Visibility.Collapsed;
 
-        bool supOpen = SuperiorKeys.All(k => s.Sensors.GetValueOrDefault(k));
         bool froOpen = FrontalKeys.All(k => s.Sensors.GetValueOrDefault(k));
+        bool traOpen = TraseraKeys.All(k => s.Sensors.GetValueOrDefault(k));
         foreach (var (c, r) in _coverRects)
-            r.Visibility = (c == "Superior" ? supOpen : froOpen) ? Visibility.Visible : Visibility.Collapsed;
+            r.Visibility = (c == "Frontal" ? froOpen : traOpen) ? Visibility.Visible : Visibility.Collapsed;
 
         var errs = new List<string>();
-        if (supOpen) errs.Add("Tapa superior abierta: verificar que no queden billetes atascados y cerrar la tapa");
         if (froOpen) errs.Add("Tapa frontal abierta: verificar que no queden billetes atascados y cerrar la tapa");
+        if (traOpen) errs.Add("Tapa trasera abierta: verificar que no queden billetes atascados y cerrar la tapa");
         errs.AddRange(s.Errors.Where(e => e.Value).Select(e => ErrorNames.GetValueOrDefault(e.Key, e.Key)));
         SensorErrText.Foreground = errs.Count > 0 ? Bad() : Ok();
         SensorErrText.Text = errs.Count > 0 ? string.Join("\n", errs) : "Sin atascos ni errores";
@@ -198,8 +257,9 @@ public partial class MainWindow
         int Cab(string k) => s.Cabinet.TryGetValue(k, out int v) ? v : -1;
         var cov = new List<string>
         {
-            "Tapa superior: " + (supOpen || coverUp ? "ABIERTA — verificar atascos y cerrarla" : "cerrada"),
             "Tapa frontal: " + (froOpen ? "ABIERTA — verificar atascos y cerrarla" : "cerrada"),
+            "Tapa trasera: " + (traOpen ? "ABIERTA — verificar atascos y cerrarla" : "cerrada"),
+            "Tapa superior (aviso del SDK): " + (coverUp ? "ABIERTA" : "cerrada"),
             "Compuerta de escrow: " + (s.Gates.EscrowFault ? "ANOMALÍA" : s.Gates.EscrowOpen ? "abierta" : "cerrada") +
                 " · traba " + (s.Sensors.GetValueOrDefault("LockCloseSensor") ? "cerrada" : s.Sensors.GetValueOrDefault("LockOpenSensor") ? "abierta" : "sin posición"),
             "Compuerta de caída: " + (s.Gates.DropDoorFault ? "ANOMALÍA" : s.Gates.DropDoorOpen ? "abierta" : "cerrada"),
@@ -208,7 +268,8 @@ public partial class MainWindow
             $"Bolsa casi llena: {Cab("AlmostFull")} · bolsa llena: {Cab("Full")} · vibración: {Cab("Shake")}",
         };
         SensorCoverText.Text = string.Join("\n", cov);
-        SensorCoverText.Foreground = coverUp || supOpen || froOpen ? Bad() : (Brush)FindResource("Dark");
+        SensorCoverText.Foreground = coverUp || froOpen || traOpen ? Bad() : (Brush)FindResource("Dark");
+        ShowTiles(s, froOpen, traOpen);
 
         var g = s.Gates;
         string proc = g.Process >= 0 && g.Process < ProcessNames.Length ? ProcessNames[g.Process] : $"estado {g.Process}";
