@@ -37,7 +37,8 @@ public partial class MainWindow : Window
         });
         CfgText.Text = $"Mode={_cfg.Mode}\nCIM={_cfg.CimLogicalName}\nVDM={_cfg.VdmLogicalName}\nLogs={_cfg.LogDir}\nSP logs={EffectiveSpLogDir()}\nSNBC tool={EffectiveSnbcTool()}";
         InitSensors();
-        Loaded += async (_, _) => { CheckTestTool(); await ConnectAsync(); };
+        Loaded += async (_, _) => { WindowState = WindowState.Maximized; CheckTestTool(); await ConnectAsync(); };
+        Closing += OnClosingAsync;
         Closed += (_, _) => { _dev?.Dispose(); _events.Dispose(); };
     }
 
@@ -61,6 +62,9 @@ public partial class MainWindow : Window
             StatusBar.Text = "Modo supervisor activado desde la aplicación bancaria";
         }
         await RefreshAsync();
+        // Al abrir la app se entra solo en modo supervisor y se arranca la lectura de sensores en vivo
+        Tabs.SelectedIndex = 1;
+        await StartLiveAsync();
     }
 
     // ---------- Estado ----------
@@ -112,19 +116,50 @@ public partial class MainWindow : Window
     }
 
     // ---------- Supervisor ----------
-    private async void Enter_Click(object s, RoutedEventArgs e)
+    private bool _closingDone;
+
+    /// <summary>Entra en modo supervisor si hace falta. Devuelve true si quedó activo.</summary>
+    private async Task<bool> EnsureSupervisorAsync()
     {
-        if (_dev is null) return;
-        await RunAsync("Solicitando modo supervisor (esperando que la app bancaria libere el equipo)...", () => _dev.EnterSupervisorAsync());
+        if (_dev is null) return false;
+        if (_dev.Mode == SupervisorMode.Active) return true;
+        await RunAsync("Entrando en modo supervisor (la aplicación bancaria libera el equipo)...", () => _dev.EnterSupervisorAsync());
         UpdateModeUi();
+        return _dev.Mode == SupervisorMode.Active;
     }
 
-    private async void Exit_Click(object s, RoutedEventArgs e)
+    private async void SupervisorToggle_Click(object s, RoutedEventArgs e)
     {
         if (_dev is null) return;
-        await RunAsync("Saliendo del modo supervisor...", () => _dev.ExitSupervisorAsync());
-        UpdateModeUi();
-        await RefreshAsync();
+        if (_dev.Mode == SupervisorMode.Active)
+        {
+            _liveWanted = false;
+            if (_dev.NativeActive) await Run("Volviendo a operación normal (el Service Provider tarda hasta un minuto)...", () => _dev.EndNative());
+            await RunAsync("Saliendo del modo supervisor (el equipo vuelve a la aplicación bancaria)...", () => _dev.ExitSupervisorAsync());
+            UpdateModeUi();
+            await RefreshAsync();
+        }
+        else
+        {
+            _liveWanted = true;
+            await StartLiveAsync();
+        }
+    }
+
+    /// <summary>Al cerrar la app: se devuelve el validador al Service Provider y se sale del modo supervisor.</summary>
+    private async void OnClosingAsync(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (_closingDone || _dev is null || (_dev.Mode != SupervisorMode.Active && !_dev.NativeActive)) return;
+        e.Cancel = true;
+        _sensorTimer.Stop();
+        try
+        {
+            if (_dev.NativeActive) await Run("Cerrando: volviendo a operación normal...", () => _dev.EndNative());
+            if (_dev.Mode == SupervisorMode.Active) await RunAsync("Cerrando: saliendo del modo supervisor...", () => _dev.ExitSupervisorAsync());
+        }
+        catch { }
+        _closingDone = true;
+        Close();
     }
 
     private void UpdateModeUi()
@@ -132,22 +167,30 @@ public partial class MainWindow : Window
         bool active = _dev?.Mode == SupervisorMode.Active;
         ModeText.Text = active ? "SUPERVISOR ACTIVO" : "SUPERVISOR INACTIVO";
         ModeBadge.Background = active ? (Brush)FindResource("Brand") : (Brush)FindResource("Muted");
-        EnterBtn.IsEnabled = !active;
-        ExitBtn.IsEnabled = active;
-        DiagPanel.IsEnabled = active;
-        GatePanel.IsEnabled = active;
+        SupervisorBtn.Content = active ? "Salir del modo supervisor" : "Entrar en modo supervisor";
+        SupervisorBtn.Background = active ? (Brush)FindResource("Dark") : (Brush)FindResource("Brand");
+        SupervisorBtn.Foreground = Brushes.White;
+        SupervisorBtn.BorderThickness = new Thickness(0);
         UpdateGateUi();
-        DiagHint.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
     }
 
     // ---------- Diagnóstico ----------
-    private async void Reset_Click(object s, RoutedEventArgs e) { if (!await EnsureNormalAsync()) return; await Run("Reset en curso (puede tardar)...", () => _dev!.Reset()); await RefreshAsync(); }
+    private async void Reset_Click(object s, RoutedEventArgs e) => await XfsAction(async () => { await Run("Reset en curso (puede tardar)...", () => _dev!.Reset()); await RefreshAsync(); });
+
+    /// <summary>Prueba XFS: entra en supervisor si hace falta, devuelve el validador al Service Provider, ejecuta y retoma la lectura en vivo.</summary>
+    private async Task XfsAction(Func<Task> body)
+    {
+        if (!await EnsureSupervisorAsync()) return;
+        if (!await EnsureNormalAsync()) return;
+        try { await body(); }
+        finally { if (_liveWanted && _dev?.Mode == SupervisorMode.Active) await StartLiveAsync(); }
+    }
 
     /// <summary>Las pruebas XFS necesitan el Service Provider: si hay mantenimiento directo activo, se vuelve antes a operación normal.</summary>
     private async Task<bool> EnsureNormalAsync()
     {
         if (_dev?.NativeActive != true) return true;
-        await Run("Volviendo a operación normal antes de la prueba (el Service Provider tarda hasta un minuto)...", () => _dev!.EndNative());
+        await Run("Pausando la lectura en vivo: el Service Provider retoma el validador (hasta un minuto)...", () => _dev!.EndNative());
         UpdateGateUi();
         return _dev?.NativeActive != true;
     }
@@ -158,21 +201,17 @@ public partial class MainWindow : Window
         if (!native) { _escrowOpen = false; _dropOpen = false; }
         EscrowBtn.Content = _escrowOpen ? "Cerrar escrow" : "Abrir escrow";
         DropBtn.Content = _dropOpen ? "Cerrar compuerta de caída" : "Abrir compuerta de caída";
-        NormalBtn.Visibility = native ? Visibility.Visible : Visibility.Collapsed;
+        LiveBtn.Content = native ? "Detener lectura en vivo" : "Iniciar lectura en vivo";
+        LiveDot.Fill = native ? (Brush)FindResource("Ok") : (Brush)FindResource("Muted");
+        if (!native) LiveText.Text = _dev?.Mode == SupervisorMode.Active ? "Detenida" : "Detenida (fuera de modo supervisor)";
         if (!native) ClearSensors();
     }
 
-    private bool ConfirmNative()
-    {
-        if (_dev?.NativeActive == true) return true;
-        return MessageBox.Show(this, "Para mover las compuertas se detiene el Service Provider del validador. " +
-            "Mientras tanto no se puede depositar. Al terminar pulse «Volver a operación normal».\n\n¿Continuar?",
-            "Mantenimiento directo", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
-    }
+    private Task<bool> ConfirmNative() => EnsureSupervisorAsync();
 
     private async Task GateOp(string status, Func<GateStatus> op)
     {
-        if (!ConfirmNative()) return;
+        if (!await ConfirmNative()) return;
         GateStatus? g = null;
         await Run(status, () => g = op());
         if (g != null)
@@ -211,9 +250,10 @@ public partial class MainWindow : Window
         await RefreshAsync();
     }
 
-    private async void TestDeposit_Click(object s, RoutedEventArgs e)
+    private async void TestDeposit_Click(object s, RoutedEventArgs e) => await XfsAction(TestDepositCore);
+
+    private async Task TestDepositCore()
     {
-        if (!await EnsureNormalAsync()) return;
         using var cts = new CancellationTokenSource();
         var msg = new TextBlock { Text = "Coloque los billetes en la boca de depósito…", FontSize = 16, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 16) };
         var cancel = new Button { Content = "Cancelar", MinWidth = 140, HorizontalAlignment = HorizontalAlignment.Right };
@@ -252,17 +292,19 @@ public partial class MainWindow : Window
         await RefreshAsync();
     }
 
-    private async void BagExchange_Click(object s, RoutedEventArgs e)
+    private async void BagExchange_Click(object s, RoutedEventArgs e) => await XfsAction(BagExchangeCore);
+
+    private async Task BagExchangeCore()
     {
-        if (!await EnsureNormalAsync()) return;
         if (MessageBox.Show("Esto pone en cero los contadores de la bolsa. Hágalo solo después de retirar la bolsa llena y colocar la nueva. ¿Continuar?",
                 "Cambio de bolsa", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         await Run("Registrando cambio de bolsa...", () => _dev!.BagExchange());
         await RefreshAsync();
     }
-    private async void Caps_Click(object s, RoutedEventArgs e)
+    private async void Caps_Click(object s, RoutedEventArgs e) => await XfsAction(CapsCore);
+
+    private async Task CapsCore()
     {
-        if (!await EnsureNormalAsync()) return;
         string caps = "";
         await Run("Leyendo capabilities...", () => caps = _dev!.GetCapabilities());
         _log.Info("CAPABILITIES: " + caps);

@@ -281,18 +281,38 @@ public partial class MainWindow
         parts.Add(g.DropDoorFault ? "compuerta de caída con anomalía" : g.DropDoorOpen ? "compuerta de caída abierta" : "compuerta de caída cerrada");
         SensorProcText.Text = string.Join(" · ", parts);
         SensorTimeText.Text = $"Lectura: {s.Time:HH:mm:ss}";
+        LiveText.Text = $"Leyendo cada 1 s · {s.Time:HH:mm:ss}";
         _escrowOpen = g.EscrowOpen; _dropOpen = g.DropDoorOpen;
         EscrowBtn.Content = _escrowOpen ? "Cerrar escrow" : "Abrir escrow";
         DropBtn.Content = _dropOpen ? "Cerrar compuerta de caída" : "Abrir compuerta de caída";
     }
 
-    private async void ReadSensors_Click(object s, RoutedEventArgs e)
+    private bool _liveWanted = true;
+
+    /// <summary>Entra en modo supervisor si hace falta y arranca la lectura en vivo (mantenimiento directo con el SDK).</summary>
+    private async Task StartLiveAsync()
     {
-        if (!ConfirmNative()) return;
+        if (!await EnsureSupervisorAsync()) return;
+        if (_dev!.NativeActive) return;
         SensorSnapshot? snap = null;
-        await Run("Leyendo sensores del validador...", () => snap = _dev!.ReadSensors());
+        await Run("Iniciando la lectura de sensores en vivo...", () => snap = _dev.ReadSensors());
         UpdateGateUi();
         if (snap != null) ShowSensors(snap);
+    }
+
+    private async void LiveToggle_Click(object s, RoutedEventArgs e)
+    {
+        if (_dev?.NativeActive == true)
+        {
+            _liveWanted = false;
+            await Run("Deteniendo la lectura en vivo: el Service Provider retoma el validador (hasta un minuto)...", () => _dev!.EndNative());
+            await RefreshAsync();
+        }
+        else
+        {
+            _liveWanted = true;
+            await StartLiveAsync();
+        }
     }
 
     private async Task PollSensorsAsync()
