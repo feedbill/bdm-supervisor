@@ -24,3 +24,17 @@
 - En el C210T la impresora, el pinpad y la SIU los toma el FeedbillAgent: para probarlos hay que detener el servicio.
 - Pedido 18/11 (próxima versión, hecho en el código sin publicar): en Sensores e indicadores, columna derecha "Indicadores luminosos" con cada luz guía listada
   y botones ENCENDER / TITILAR / APAGAR por luz; "Probar todas" sigue disponible. Falta probarlo en el C210T.
+- 18/11: prueba de puertos de la placa SIU del C210T (STMIO.ini Board1Port): responde SOLO en COM1 (firmware "JK Firmware:FV2.050.03");
+  en COM2–COM6 el SP abre igual pero devuelve todo en 0. Quedó en COM1 (copia: STMIO.ini.bak-antes-prueba-puertos-20261118).
+  Con la placa respondiendo: luces guía = 2 (apagadas), proximidad = 2; puertas = 1 → probablemente WFS_SIU_NOT_AVAILABLE (no cableadas/monitoreadas).
+- 18/11: etiquetas de conexiones de C210T y BDM-500 en BdmSupervisor/docs. C210T SIU_PHYSICS.ini (índice XFS → pin de la placa):
+  luces CARDUNIT(0)=LED03, NOTESDISPENSER(2)=LED02, RECEIPTPRINTER(4)=LED01, CHEQUEUNIT(7)=LED04, BILLACCEPTOR(8)=LED02 (misma que 2);
+  sensores OPERATORSWITCH(0)=IN4, SEISMIC(3)=SNS1, PROXIMITY(5)=SNS0; puertas CABINET(0)=SNS4A, SAFE(1)=SNS2A, FRONT(3)=SNS3A, REAR(4)=SNS4A.
+  Propuesta: leer SIU_PHYSICS.ini y mostrar solo lo cableado, con el nombre real del equipo (perfil por modelo) y el pin; ocultar luces que comparten LED.
+  BDM-500 según etiqueta: IO board en COM1, UPS COM3, lectora COM4; 3 cámaras (cara, entrada de billetes, rechazo), NFC, código de barras,
+  2 impresoras y 2 pantallas; sensores de proximidad, vibración, bolsa llena, cerrojo y puerta de caja fuerte, shutter abierto/cerrado,
+  bolsa presente, puerta del cabezal; luces de entrada/rechazo/salida de billetes, impresoras 1 y 2, lectora, sin contacto, EPP, huella.
+- 0.7.2 (18/11): SIU según SIU_PHYSICS.ini (solo lo cableado, con pin; luces que comparten LED unificadas), nombres reales por modelo
+  en appsettings "SiuPinNames", luces con ENCENDER/TITILAR/APAGAR por luz, aviso "el SP responde pero la placa no" si no hay firmware.
+- C210T: impresora BT-NH80M configurada en COM5:38400 (estaba en COM2, daba Offline); con COM5 queda en línea, papel bajo, e imprime.
+  Valor original guardado en C:\fbtmp\ptr_portdesc_original.txt. Placa SIU confirmada en COM1.

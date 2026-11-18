@@ -18,7 +18,9 @@ public sealed class ModuleStatus
     public string Sp { get; init; } = "";
     public List<ModuleLine> Lines { get; } = [];
     /// <summary>Luces guía de la SIU: índice XFS, nombre y estado actual.</summary>
-    public List<(int Index, string Name, int Value)> Lights { get; } = [];
+    public List<(int[] Indexes, string Name, int Value)> Lights { get; } = [];
+    /// <summary>true si el SP respondió pero la placa no (sin versión de firmware): puerto mal configurado o placa sin alimentación.</summary>
+    public bool BoardSilent { get; set; }
     public string Extra { get; set; } = "";
     public bool Ok => Opened && Device == 0;
 }
@@ -106,6 +108,7 @@ public static class XfsModules
                 st.Lines.Add(new ModuleLine("Dispositivo", DeviceName(dev), dev == 0));
                 int extraOff = DecodeStatus(m.Type, b, st);
                 if (extraOff >= 0 && Readable(b, extraOff + 4) >= extraOff + 4) st.Extra = ReadExtra(Marshal.ReadIntPtr(b, extraOff));
+                if (ClassOf(m.Type) == SIU && dev == 0 && System.Text.RegularExpressions.Regex.IsMatch(st.Extra, @"FirmwareVersion=\s*(·|$)")) st.BoardSilent = true;
                 log.Info($"[{m.LogicalName}] status raw ({extraOff + 4} bytes): {Hex(b, Math.Max(extraOff + 4, 16))}");
                 // Fuera de línea: los valores de los componentes no son confiables, se muestran sin color
                 if (dev != 0) for (int i = 1; i < st.Lines.Count; i++) if (st.Lines[i].Ok == true) st.Lines[i] = st.Lines[i] with { Ok = null };
@@ -129,7 +132,7 @@ public static class XfsModules
     static readonly string[] CamNames = ["Cámara de ambiente", "Cámara de cliente", "Cámara de salida"];
     static readonly string[] BcrScanner = ["Encendido", "Apagado", "INOPERATIVO", "Desconocido"];
     public static readonly string[] SiuSensorNames = ["Llave de operador", "Antisabotaje", "Antisabotaje interno", "Sísmico", "Calor", "Proximidad", "Luz ambiente", "Audio", "Botón de arranque", "Pantalla del cliente", "Botón de llamada", "Auricular", "Entrada general"];
-    public static readonly string[] SiuDoorNames = ["Puerta del gabinete", "Puerta de la caja fuerte", "Protector antivandálico"];
+    public static readonly string[] SiuDoorNames = ["Puerta del gabinete", "Puerta de la caja fuerte", "Protector antivandálico", "Puerta frontal", "Puerta trasera", "Puerta izquierda", "Puerta derecha"];
     public static readonly string[] SiuIndicatorNames = ["Indicador abierto/cerrado", "Luz de frente", "Audio", "Calefacción", "Volumen de auriculares"];
     public static readonly string[] GuideLightNames = ["Lectora de tarjeta", "Pinpad", "Dispensador", "Monedas", "Impresora de recibos", "Impresora de libretas", "Depósito de sobres", "Cheques", "Aceptador de billetes", "Dispensador de sobres", "Impresora de documentos", "Aceptador de monedas", "Escáner"];
 
@@ -139,7 +142,7 @@ public static class XfsModules
     /// <summary>Agrega las líneas propias de cada clase y devuelve el desplazamiento de lpszExtra (-1 si no hay).</summary>
     static int DecodeStatus(string type, IntPtr b, ModuleStatus st)
     {
-        void L(string label, string v) => st.Lines.Add(new ModuleLine(label, v, Bad(v) ? false : v is "Desconocido" or "No soportado" or "Sin dato" || v.StartsWith("0x") ? null : true));
+        void L(string label, string v) => st.Lines.Add(new ModuleLine(label, v, Bad(v) ? false : v is "Desconocido" or "No soportado" or "Sin dato" or "Bajo" || v.StartsWith("0x") ? null : true));
         switch (ClassOf(type))
         {
             case PTR:
@@ -160,11 +163,21 @@ public static class XfsModules
             {
                 if (Readable(b, 198) < 198) return -1;
                 int extra = SiuExtraOffset(b), lights = extra == 194 ? 16 : 32;
+                var phy = SiuPhysics.Load();
                 // SP de SNBC: 0 = el elemento no existe; 1 = existe pero sin estado informado
-                for (int i = 0; i < SiuDoorNames.Length; i++) { int v = WB(b, 66 + 2 * i); if (v >= 1) L(SiuDoorNames[i], SiuDoor(v)); }
-                for (int i = 0; i < SiuSensorNames.Length; i++) { int v = WB(b, 2 + 2 * i); if (v >= 1) st.Lines.Add(new ModuleLine(SiuSensorNames[i], SiuOnOff(v))); }
-                for (int i = 0; i < SiuIndicatorNames.Length; i++) { int v = WB(b, 98 + 2 * i); if (v >= 1) st.Lines.Add(new ModuleLine(SiuIndicatorNames[i], SiuOnOff(v))); }
-                for (int i = 0; i < lights; i++) { int v = WB(b, 162 + 2 * i); if (v >= 1) st.Lights.Add((i, i < GuideLightNames.Length ? GuideLightNames[i] : $"Luz {i}", v)); }
+                void Part(string section, string[] names, int off, int count, Func<int, string> text, bool door)
+                {
+                    foreach (var (idxs, label) in Group(phy, section, names, count, i => WB(b, off + 2 * i) >= 1))
+                    {
+                        int v = WB(b, off + 2 * idxs[0]);
+                        if (door) L(label, SiuDoor(v)); else st.Lines.Add(new ModuleLine(label, text(v)));
+                    }
+                }
+                Part("Door", SiuDoorNames, 66, 16, SiuDoor, true);
+                Part("Sensor", SiuSensorNames, 2, 32, SiuOnOff, false);
+                Part("Indicator", SiuIndicatorNames, 98, 16, SiuOnOff, false);
+                foreach (var (idxs, label) in Group(phy, "GuidLight", GuideLightNames, lights, i => WB(b, 162 + 2 * i) >= 1))
+                    st.Lights.Add((idxs, label, WB(b, 162 + 2 * idxs[0])));
                 return extra;
             }
             case CAM:
@@ -181,6 +194,28 @@ public static class XfsModules
                 return 132;
         }
         return -1;
+    }
+
+    /// <summary>Nombres de pines de la placa por modelo (appsettings "SiuPinNames"), p. ej. LED02 = "Piloto entrada/salida de efectivo".</summary>
+    public static Dictionary<string, string> SiuPinNames { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Elementos a mostrar de una sección de la SIU. Si existe SIU_PHYSICS.ini, solo los que tienen un pin de la placa asignado,
+    /// agrupando los que comparten el mismo pin (misma luz física). Si no, los que el SP informa como existentes.
+    /// </summary>
+    static List<(int[] Idx, string Label)> Group(SiuPhysics? phy, string section, string[] names, int count, Func<int, bool> exists)
+    {
+        string Name(int i) => i < names.Length ? names[i] : $"#{i}";
+        var map = phy?.Section(section);
+        if (map is null || map.Count == 0)
+            return Enumerable.Range(0, count).Where(exists).Select(i => (new[] { i }, Name(i))).ToList();
+        return map.Where(kv => kv.Key < count).GroupBy(kv => kv.Value, StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                int[] idx = g.Select(kv => kv.Key).OrderBy(i => i).ToArray();
+                string label = SiuPinNames.TryGetValue(g.Key, out var friendly) ? friendly : string.Join(" / ", idx.Select(Name));
+                return (idx, $"{label} ({g.Key})");
+            }).OrderBy(x => x.idx[0]).ToList();
     }
 
     /// <summary>
@@ -390,14 +425,13 @@ public static class XfsModules
     public const int LightOff = 0x0002, LightFlash = 0x0008, LightOn = 0x0080;
 
     /// <summary>Enciende, hace titilar o apaga una luz guía de la SIU.</summary>
-    public static ModuleTestResult SetGuideLight(ModuleDef m, AppConfig cfg, LogService log, int light, int command)
+    public static ModuleTestResult SetGuideLight(ModuleDef m, AppConfig cfg, LogService log, int[] lights, string name, int command)
     {
         using var s = new XfsSession(m.LogicalName, cfg.AppId, 15000, cfg.TraceLevel, log);
-        string name = light < GuideLightNames.Length ? GuideLightNames[light] : $"Luz {light}";
         string what = command switch { LightOn => "encendida", LightFlash => "titilando", _ => "apagada" };
-        return SetLight(s, light, command)
-            ? new ModuleTestResult(true, $"{name}: {what}")
-            : new ModuleTestResult(false, $"{name}: la SIU no aceptó el comando");
+        bool ok = false;
+        foreach (int l in lights) ok |= SetLight(s, l, command);
+        return ok ? new ModuleTestResult(true, $"{name}: {what}") : new ModuleTestResult(false, $"{name}: la SIU no aceptó el comando");
     }
 
     static bool SetLight(XfsSession s, int light, int command)
@@ -553,5 +587,40 @@ public static class XfsModules
             start = i + 1;
         }
         return string.Join("  ·  ", parts);
+    }
+}
+
+/// <summary>
+/// SIU_PHYSICS.ini del SP de SNBC: qué índice XFS (luz guía, sensor, puerta, indicador) está conectado a qué pin de la placa
+/// (LED01, SNS0, IN4...). Una clave vacía = no conectado.
+/// </summary>
+public sealed class SiuPhysics
+{
+    public const string DefaultPath = @"C:\SNBC SP\SIU_SNBC_STMIOAV\SIU_PHYSICS.ini";
+    private readonly Dictionary<string, Dictionary<int, string>> _sections = new(StringComparer.OrdinalIgnoreCase);
+    private static SiuPhysics? _cache; private static DateTime _cacheTime;
+
+    public Dictionary<int, string>? Section(string name) => _sections.TryGetValue(name, out var d) ? d : null;
+
+    public static SiuPhysics? Load(string path = DefaultPath)
+    {
+        try
+        {
+            if (!File.Exists(path)) return null;
+            var t = File.GetLastWriteTime(path);
+            if (_cache is not null && t == _cacheTime) return _cache;
+            var phy = new SiuPhysics(); Dictionary<int, string>? cur = null;
+            foreach (var raw in File.ReadAllLines(path, Encoding.Latin1))
+            {
+                var line = raw.Trim();
+                if (line.StartsWith('[')) { cur = new(); phy._sections[line.Trim('[', ']')] = cur; continue; }
+                if (cur is null || line.StartsWith(';')) continue;
+                var mm = System.Text.RegularExpressions.Regex.Match(line, @"^[A-Za-z_]+\((\d+)\)\s*=\s*(\S*)\s*$");
+                if (mm.Success && mm.Groups[2].Value.Length > 0) cur[int.Parse(mm.Groups[1].Value)] = mm.Groups[2].Value;
+            }
+            _cache = phy; _cacheTime = t;
+            return phy;
+        }
+        catch { return null; }
     }
 }

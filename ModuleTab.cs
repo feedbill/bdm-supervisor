@@ -119,9 +119,11 @@ public sealed class ModuleTab : Grid
             Loc.Attach(_lines);
             return;
         }
-        bool allOk = st.Ok && st.Lines.All(l => l.Ok != false);
+        bool allOk = st.Ok && !st.BoardSilent && st.Lines.All(l => l.Ok != false);
         _bar.Background = Res(allOk ? "Ok" : st.Ok ? "Warn" : "Bad");
+        if (st.BoardSilent) _bar.Background = Res("Bad");
         _barDetail.Text = st.Error.Length > 0 ? "Error al leer el estado: " + st.Error
+            : st.BoardSilent ? "EL SP RESPONDE PERO LA PLACA NO · revisar el puerto en STMIO.ini y la alimentación de la placa"
             : allOk ? "EN LÍNEA · SIN ALERTAS" : XfsModules.DeviceName(st.Device) + (st.Ok ? " · VERIFICAR" : "");
         foreach (var l in st.Lines) AddLine(l);
         ShowLights(st);
@@ -139,42 +141,40 @@ public sealed class ModuleTab : Grid
         {
             _lights.Children.Add(new TextBlock { Text = st.Opened ? "La SIU no informa luces guía." : "Sin conexión con la SIU.", FontSize = 14, Foreground = Res("Muted") });
         }
-        foreach (var (index, name, value) in st.Lights)
+        foreach (var (indexes, name, value) in st.Lights)
         {
-            var g = new Grid { Margin = new Thickness(0, 3, 0, 3) };
+            var g = new Grid { Margin = new Thickness(0, 4, 0, 4) };
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(130) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var n = new TextBlock { Text = name, FontSize = 15, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
             bool lit = value is 0x04 or 0x08 or 0x10 or 0x80;
-            var v = new TextBlock { Text = XfsModules.SiuLight(value), FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center,
-                Foreground = lit ? Res("Warn") : Res("Muted") };
-            SetColumn(v, 1);
-            var buttons = new StackPanel { Orientation = Orientation.Horizontal };
+            var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+            info.Children.Add(new TextBlock { Text = name, FontSize = 15, TextWrapping = TextWrapping.Wrap });
+            info.Children.Add(new TextBlock { Text = XfsModules.SiuLight(value), FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = lit ? Res("Warn") : Res("Muted") });
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             foreach (var (caption, cmd) in new[] { ("ENCENDER", XfsModules.LightOn), ("TITILAR", XfsModules.LightFlash), ("APAGAR", XfsModules.LightOff) })
             {
-                var b = new Button { Content = caption, MinWidth = 96, MinHeight = 34, FontSize = 13, Padding = new Thickness(8, 3, 8, 3), Margin = new Thickness(4, 0, 0, 0) };
-                int light = index, command = cmd;
-                b.Click += async (_, _) => await LightAsync(light, command);
+                var b = new Button { Content = caption, MinWidth = 84, MinHeight = 32, FontSize = 12, Padding = new Thickness(6, 2, 6, 2), Margin = new Thickness(4, 0, 0, 0) };
+                int[] lights = indexes; string lname = name; int command = cmd;
+                b.Click += async (_, _) => await LightAsync(lights, lname, command);
                 buttons.Children.Add(b);
             }
-            SetColumn(buttons, 2);
-            g.Children.Add(n); g.Children.Add(v); g.Children.Add(buttons);
+            SetColumn(buttons, 1);
+            g.Children.Add(info); g.Children.Add(buttons);
             _lights.Children.Add(g);
         }
         Loc.Attach(_lights);
     }
 
-    private async Task LightAsync(int light, int command)
+    private async Task LightAsync(int[] lights, string name, int command)
     {
         if (_busy) return;
         _busy = true; _refresh.IsEnabled = _test.IsEnabled = _lights!.IsEnabled = false;
         try
         {
-            var r = await Task.Run(() => XfsModules.SetGuideLight(_m, _cfg, _log, light, command));
+            var r = await Task.Run(() => XfsModules.SetGuideLight(_m, _cfg, _log, lights, name, command));
             _result.Text = r.Text;
             _result.Foreground = Res(r.Ok ? "Ok" : "Bad");
-            _log.Info($"[{_m.LogicalName}] luz {light} comando 0x{command:X}: {r.Text}");
+            _log.Info($"[{_m.LogicalName}] luz {string.Join(",", lights)} comando 0x{command:X}: {r.Text}");
         }
         catch (XfsException ex) { _result.Text = "No se pudo abrir el servicio: " + XfsConst.ErrorName(ex.HResult2); _result.Foreground = Res("Bad"); }
         catch (Exception ex) { _result.Text = "Error: " + ex.Message; _result.Foreground = Res("Bad"); }

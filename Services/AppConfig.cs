@@ -27,6 +27,8 @@ public sealed class AppConfig
     /// <summary>Modelo del equipo (encabezado) y módulos XFS que tiene: una pestaña por módulo.</summary>
     public string Model { get; init; } = "BDM-500";
     public List<ModuleDef> Modules { get; init; } = DefaultModules;
+    /// <summary>Nombre real de cada pin de la placa SIU para este modelo (LED01, SNS0...), según la etiqueta de conexiones del equipo.</summary>
+    public Dictionary<string, string> SiuPinNames { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Módulos del BDM-500 (servicios lógicos del SP de SNBC). Se usan si appsettings.json no trae la sección "Modules".</summary>
     public static readonly List<ModuleDef> DefaultModules =
@@ -79,6 +81,8 @@ public sealed class AppConfig
             ParamsPassword = root.GetSection("Supervisor")["ParamsPassword"] ?? "1234",
             CameraImageDir = p["CameraImageDir"],
             Model = d["Model"] ?? "BDM-500",
+            SiuPinNames = root.GetSection("SiuPinNames").GetChildren().Where(c => !c.Key.StartsWith('_') && !string.IsNullOrWhiteSpace(c.Value))
+                .ToDictionary(c => c.Key, c => c.Value!, StringComparer.OrdinalIgnoreCase),
             Modules = root.GetSection("Modules").Exists()
                 ? root.GetSection("Modules").GetChildren()
                     .Where(m => !string.Equals(m["Enabled"], "false", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(m["Type"]) && !string.IsNullOrEmpty(m["LogicalName"]))

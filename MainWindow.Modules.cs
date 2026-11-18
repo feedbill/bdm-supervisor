@@ -1,5 +1,6 @@
 using System.Windows.Controls;
 using BdmSupervisor.Services;
+using BdmSupervisor.Xfs;
 
 namespace BdmSupervisor;
 
@@ -11,6 +12,7 @@ public partial class MainWindow
 
     private void InitModules()
     {
+        XfsModules.SiuPinNames = _cfg.SiuPinNames;
         int at = Tabs.Items.IndexOf(MaintTab);
         foreach (var m in _cfg.Modules)
         {
