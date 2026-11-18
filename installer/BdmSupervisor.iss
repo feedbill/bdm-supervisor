@@ -1,6 +1,6 @@
-; BDM-500 Supervisor - instalador Feedbill (Inno Setup 6)
+﻿; BDM-500 Supervisor - instalador Feedbill (Inno Setup 6)
 #define AppName "BDM-500 Supervisor"
-#define AppVersion "0.5.3"
+#define AppVersion "0.6.0"
 #define AppPublisher "Feedbill"
 #define AppExe "BdmSupervisor.exe"
 #define SrcDir "C:\feedbill\BdmSupervisor"
@@ -28,13 +28,38 @@ DisableProgramGroupPage=yes
 
 [Languages]
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[CustomMessages]
+spanish.TaskDesktop=Crear acceso directo en el escritorio
+english.TaskDesktop=Create a desktop shortcut
+spanish.GrpShortcuts=Accesos directos:
+english.GrpShortcuts=Shortcuts:
+spanish.TaskVdm=Registrar esta aplicación como herramienta de supervisor (VDM / TestTool) del Service Provider SNBC
+english.TaskVdm=Register this application as the supervisor tool (VDM / TestTool) of the SNBC Service Provider
+spanish.GrpVdm=Integración con el SP XFS de SNBC:
+english.GrpVdm=SNBC XFS SP integration:
+spanish.TaskProfile=Configurar el SP según el equipo instalado:
+english.TaskProfile=Configure the SP for the installed hardware:
+spanish.GrpProfile=Perfil del BDM-500:
+english.GrpProfile=BDM-500 profile:
+spanish.TaskGalicia=Sin shutter eléctrico / mecánico (Banco Galicia)
+english.TaskGalicia=Without electric shutter (shutter disabled)
+spanish.TaskElectrico=Con shutter eléctrico (configuración de fábrica SNBC)
+english.TaskElectrico=With electric shutter (SNBC factory configuration)
+spanish.IconXfsCheck=Chequeo XFS (XfsCheck)
+english.IconXfsCheck=XFS check (XfsCheck)
+spanish.IconUninstall=Desinstalar
+english.IconUninstall=Uninstall
+spanish.RunApp=Abrir
+english.RunApp=Open
 
 [Tasks]
-Name: "desktopicon"; Description: "Crear acceso directo en el escritorio"; GroupDescription: "Accesos directos:"
-Name: "vdm"; Description: "Registrar esta aplicaciÃ³n como herramienta de supervisor (VDM / TestTool) del Service Provider SNBC"; GroupDescription: "IntegraciÃ³n con el SP XFS de SNBC:"; Check: SpInstalled
-Name: "profile"; Description: "Configurar el SP segÃºn el equipo instalado:"; GroupDescription: "Perfil del BDM-500:"; Flags: checkablealone; Check: SpInstalled
-Name: "profile\galicia"; Description: "Sin shutter elÃ©ctrico / mecÃ¡nico (Banco Galicia)"; Flags: exclusive; Check: SpInstalled
-Name: "profile\electrico"; Description: "Con shutter elÃ©ctrico (configuraciÃ³n de fÃ¡brica SNBC)"; Flags: exclusive unchecked; Check: SpInstalled
+Name: "desktopicon"; Description: "{cm:TaskDesktop}"; GroupDescription: "{cm:GrpShortcuts}"
+Name: "vdm"; Description: "{cm:TaskVdm}"; GroupDescription: "{cm:GrpVdm}"; Check: SpInstalled
+Name: "profile"; Description: "{cm:TaskProfile}"; GroupDescription: "{cm:GrpProfile}"; Flags: checkablealone unchecked; Check: SpInstalled
+Name: "profile\galicia"; Description: "{cm:TaskGalicia}"; Flags: exclusive; Check: SpInstalled
+Name: "profile\electrico"; Description: "{cm:TaskElectrico}"; Flags: exclusive unchecked; Check: SpInstalled
 
 [Files]
 Source: "{#SrcDir}\publish\BdmSupervisor.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -46,11 +71,12 @@ Source: "{#SrcDir}\installer\vc_redist.x86.exe"; DestDir: "{tmp}"; Flags: delete
 [Dirs]
 Name: "C:\Feedbill\BdmSupervisor\logs"; Permissions: users-modify
 Name: "C:\Feedbill\BdmSupervisor\export"; Permissions: users-modify
+Name: "{commonappdata}\Feedbill\BdmSupervisor"; Permissions: users-modify
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"
-Name: "{group}\Chequeo XFS (XfsCheck)"; Filename: "{app}\XfsCheck.exe"
-Name: "{group}\Desinstalar {#AppName}"; Filename: "{uninstallexe}"
+Name: "{group}\{cm:IconXfsCheck}"; Filename: "{app}\XfsCheck.exe"
+Name: "{group}\{cm:IconUninstall} {#AppName}"; Filename: "{uninstallexe}"
 Name: "{commondesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Registry]
@@ -69,7 +95,7 @@ Filename: "C:\SNBC SP\SnbcTCR\DevCfg\CRM_TCR.ini"; Section: "PHY"; Key: "Shutter
 
 [Run]
 Filename: "{tmp}\vc_redist.x86.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Instalando Visual C++ Redistributable (x86)..."; Check: NeedVcRedist; Flags: waituntilterminated
-Filename: "{app}\{#AppExe}"; Description: "Abrir {#AppName}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExe}"; Description: "{cm:RunApp} {#AppName}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
 Filename: "taskkill"; Parameters: "/F /IM BdmSupervisor.exe"; Flags: runhidden; RunOnceId: "killapp"

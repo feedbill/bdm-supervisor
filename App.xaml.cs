@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+using BdmSupervisor.Services;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
 
@@ -30,7 +31,7 @@ public partial class App : Application
         base.OnStartup(e);
         DispatcherUnhandledException += (_, args) =>
         {
-            MessageBox.Show(args.Exception.Message, "BDM Supervisor â€” error", MessageBoxButton.OK, MessageBoxImage.Error);
+            Mb.Show(args.Exception.Message, "BDM Supervisor â€” error", MessageBoxButton.OK, MessageBoxImage.Error);
             args.Handled = true;
         };
     }

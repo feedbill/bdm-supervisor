@@ -151,6 +151,13 @@ public partial class MainWindow
     private static readonly string[] TileNames =
         ["Tapa frontal", "Tapa trasera", "Hopper (entrada)", "Escrow", "Rechazo", "Transporte", "Compuerta escrow", "Compuerta de caída", "Antipesca"];
     private readonly Dictionary<string, (Border Box, TextBlock State)> _tiles = [];
+    private readonly Dictionary<string, TextBlock> _tileTitles = [];
+
+    /// <summary>Títulos de los indicadores en mayúsculas en el idioma actual.</summary>
+    private void RefreshTileTitles()
+    {
+        foreach (var (n, t) in _tileTitles) t.Text = Loc.T(n).ToUpperInvariant();
+    }
     private static readonly Brush TileOk = Frozen(Color.FromRgb(0x2E, 0x9E, 0x5B));
     private static readonly Brush TileBad = Frozen(Color.FromRgb(0xD1, 0x33, 0x3B));
     private static readonly Brush TileOff = Frozen(Color.FromRgb(0xB8, 0xB8, 0xBE));
@@ -168,6 +175,7 @@ public partial class MainWindow
             };
             SensorTiles.Children.Add(box);
             _tiles[n] = (box, state);
+            _tileTitles[n] = title;
         }
     }
 
@@ -176,7 +184,7 @@ public partial class MainWindow
         var (box, state) = _tiles[name];
         box.Background = bad ? TileBad : TileOk;
         state.Text = bad ? "VERIFICAR · " + badDetail : okText;
-        box.ToolTip = bad ? badDetail : okText;
+        box.ToolTip = Loc.T(bad ? badDetail : okText);
     }
 
     private void ShowTiles(SensorSnapshot s, bool froOpen, bool traOpen)
@@ -206,7 +214,7 @@ public partial class MainWindow
 
     private void ClearTiles()
     {
-        foreach (var (box, state) in _tiles.Values) { box.Background = TileOff; state.Text = "Sin lectura en vivo"; box.ToolTip = "Pulse «Leer sensores en vivo»"; }
+        foreach (var (box, state) in _tiles.Values) { box.Background = TileOff; state.Text = "Sin lectura en vivo"; box.ToolTip = Loc.T("Pulse «Leer sensores en vivo»"); }
     }
 
     private void ClearSensors()
@@ -262,7 +270,7 @@ public partial class MainWindow
         if (errs.Count == 0 && (s.Gates.EscrowFault || s.Gates.DropDoorFault)) errs.Add("anomalía en una compuerta");
         string procName = s.Gates.Process >= 0 && s.Gates.Process < ProcessNames.Length ? ProcessNames[s.Gates.Process] : $"estado {s.Gates.Process}";
         SetValidatorBar(errs.Count > 0 ? TileBad : TileOk,
-            errs.Count > 0 ? "VALIDADOR: VERIFICAR" : "VALIDADOR: " + procName.ToUpperInvariant(),
+            errs.Count > 0 ? "VALIDADOR: VERIFICAR" : "VALIDADOR: " + Loc.T(procName).ToUpperInvariant(),
             errs.Count > 0 ? string.Join(" · ", errs) : "Sin atascos ni errores");
 
         var covered2 = Boxes.Where(b => b.Keys.Any(k => (b.Expand ? s.Expand : s.Sensors).TryGetValue(k, out bool c) && c)).Select(b => b.Name).ToList();

@@ -25,6 +25,7 @@ public sealed class LogService
 
     private void Write(string level, string msg)
     {
+        msg = Loc.T(msg);
         string line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [{level}] {msg}";
         lock (_lock)
         {

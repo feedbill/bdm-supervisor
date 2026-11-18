@@ -52,6 +52,11 @@
                         <TextBlock Text="SNBC BDM-500" FontSize="16" FontWeight="SemiBold"/>
                         <TextBlock Text="Depositario de billetes" Style="{StaticResource Label}"/>
                         <TextBlock x:Name="SerialText" Style="{StaticResource Label}" Text="" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Style="{StaticResource Label}" Text="Idioma / Language" Margin="0,20,0,4"/>
+                        <ComboBox x:Name="LangCombo" Width="170" HorizontalAlignment="Left" FontSize="15" Padding="8,5" SelectionChanged="LangCombo_Changed">
+                            <ComboBoxItem Content="Español" Tag="es"/>
+                            <ComboBoxItem Content="English" Tag="en"/>
+                        </ComboBox>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Margin="0,0,24,0">
                         <TextBlock Style="{StaticResource H1}" Text="Módulos"/>

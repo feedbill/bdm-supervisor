@@ -25,6 +25,7 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
+        Loc.Load();
         InitializeComponent();
         _cfg = AppConfig.Load();
         _log = new LogService(_cfg.LogDir);
@@ -37,6 +38,11 @@ public partial class MainWindow : Window
         });
         _log.Info($"Config: Mode={_cfg.Mode} CIM={_cfg.CimLogicalName} VDM={_cfg.VdmLogicalName} Logs={_cfg.LogDir} SP logs={EffectiveSpLogDir()}");
         InitSensors();
+        LangCombo.SelectedIndex = Loc.Lang == "en" ? 1 : 0;
+        _gridHeaders = CashUnitsGrid.Columns.Select(c => c.Header as string ?? "").ToList();
+        Loc.Attach(this);
+        Loc.Changed += OnLanguageChanged;
+        OnLanguageChanged();
         Loaded += async (_, _) => { WindowState = WindowState.Maximized; CheckTestTool(); await ConnectAsync(); };
         Closing += OnClosingAsync;
         Closed += (_, _) => { _dev?.Dispose(); _events.Dispose(); };
@@ -107,7 +113,8 @@ public partial class MainWindow : Window
         UpdateGateUi();
 
         // No mostrar lo que el equipo no tiene (NOTSUPP)
-        ModuleList.ItemsSource = rows.Where(r => r.Value != "NOTSUPP").ToList();
+        _moduleRows = rows.Where(r => r.Value != "NOTSUPP").ToList();
+        ModuleList.ItemsSource = _moduleRows.Select(r => r with { Name = Loc.T(r.Name), Value = Loc.T(r.Value) }).ToList();
         CashUnitsGrid.ItemsSource = units;
         SpText.Text = _dev.Description;
         ExtraText.Text = string.IsNullOrWhiteSpace(st.Extra) ? "—" : st.Extra;
@@ -265,6 +272,7 @@ public partial class MainWindow : Window
         dlg.Closing += (_, _) => { if (!cts.IsCancellationRequested) cts.Cancel(); };
 
         DepositCount? count = null;
+        Loc.Attach(dlg);
         dlg.Show();
         try
         {
@@ -283,7 +291,7 @@ public partial class MainWindow : Window
                        (count.Refused > 0 ? $"\nRechazados: {count.Refused} (quedan en la salida de rechazo)" : "") +
                        "\n\nSí = depositar (pasan a la bolsa)\nNo = devolver los billetes";
         _log.Info("Prueba de depósito: " + texto.Replace("\n", " | "));
-        var r = MessageBox.Show(this, texto, "Prueba de depósito", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        var r = Mb.Show(this, texto, "Prueba de depósito", MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (r == MessageBoxResult.Yes) await Run("Depositando (los billetes pasan a la bolsa)…", () => _dev!.ConfirmDeposit());
         else await Run("Devolviendo los billetes…", () => _dev!.ReturnDeposit());
         await RefreshAsync();
@@ -293,7 +301,7 @@ public partial class MainWindow : Window
 
     private async Task BagExchangeCore()
     {
-        if (MessageBox.Show("Esto pone en cero los contadores de la bolsa. Hágalo solo después de retirar la bolsa llena y colocar la nueva. ¿Continuar?",
+        if (Mb.Show("Esto pone en cero los contadores de la bolsa. Hágalo solo después de retirar la bolsa llena y colocar la nueva. ¿Continuar?",
                 "Cambio de bolsa", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
         await Run("Registrando cambio de bolsa...", () => _dev!.BagExchange());
         await RefreshAsync();
@@ -306,7 +314,7 @@ public partial class MainWindow : Window
         await Run("Leyendo capabilities...", () => caps = _dev!.GetCapabilities());
         _log.Info("CAPABILITIES: " + caps);
         if (caps.Length > 0)
-            MessageBox.Show(this, caps.Replace(" ", "\n"), "Capabilities del validador", MessageBoxButton.OK, MessageBoxImage.Information);
+            Mb.Show(this, caps.Replace(" ", "\n"), "Capabilities del validador", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     // ---------- Mantenimiento ----------
@@ -326,13 +334,13 @@ public partial class MainWindow : Window
     {
         if (_dev?.Mode != SupervisorMode.Active)
         {
-            MessageBox.Show("Entre en modo supervisor antes de abrir la herramienta del validador.", "Mantenimiento");
+            Mb.Show("Entre en modo supervisor antes de abrir la herramienta del validador.", "Mantenimiento");
             return;
         }
         string? tool = EffectiveSnbcTool();
         if (tool is null)
         {
-            MessageBox.Show("No se encontró la herramienta SNBC. Configure Paths.SnbcToolPath en appsettings.json.", "Mantenimiento");
+            Mb.Show("No se encontró la herramienta SNBC. Configure Paths.SnbcToolPath en appsettings.json.", "Mantenimiento");
             return;
         }
         _log.Info($"Abriendo tool SNBC: {tool}");
@@ -394,10 +402,27 @@ public partial class MainWindow : Window
         {
             _params.RepairTestTool(Environment.ProcessPath ?? "");
             CheckTestTool();
-            MessageBox.Show("TestTool actualizado. El SP lo toma en la próxima entrada al modo supervisor.", "BDM Supervisor");
+            Mb.Show("TestTool actualizado. El SP lo toma en la próxima entrada al modo supervisor.", "BDM Supervisor");
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "BDM Supervisor", MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception ex) { Mb.Show(ex.Message, "BDM Supervisor", MessageBoxButton.OK, MessageBoxImage.Error); }
     }
+
+    // ---------- Idioma ----------
+    private List<string> _gridHeaders = [];
+
+    private void LangCombo_Changed(object s, SelectionChangedEventArgs e)
+    {
+        if (LangCombo.SelectedItem is ComboBoxItem it && it.Tag is string lang) Loc.Set(lang);
+    }
+
+    private void OnLanguageChanged()
+    {
+        for (int i = 0; i < CashUnitsGrid.Columns.Count && i < _gridHeaders.Count; i++) CashUnitsGrid.Columns[i].Header = Loc.T(_gridHeaders[i]);
+        RefreshTileTitles();
+        ModuleList.ItemsSource = _moduleRows.Select(r => r with { Name = Loc.T(r.Name), Value = Loc.T(r.Value) }).ToList();
+    }
+
+    private List<ModuleRow> _moduleRows = [];
 
     // ---------- Helpers ----------
     private Task Run(string status, Action work) => RunAsync(status, () => Task.Run(work));
@@ -439,7 +464,7 @@ public partial class MainWindow : Window
             }
             catch { }
             StatusBar.Text = "Error: " + ex.Message;
-            MessageBox.Show(ex.Message + extraMsg, "BDM Supervisor", MessageBoxButton.OK, MessageBoxImage.Error);
+            Mb.Show(ex.Message + extraMsg, "BDM Supervisor", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
