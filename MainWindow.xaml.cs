@@ -38,6 +38,7 @@ public partial class MainWindow : Window
         });
         _log.Info($"Config: Mode={_cfg.Mode} CIM={_cfg.CimLogicalName} VDM={_cfg.VdmLogicalName} Logs={_cfg.LogDir} SP logs={EffectiveSpLogDir()}");
         InitSensors();
+        InitModules();
         LangCombo.SelectedIndex = Loc.Lang == "en" ? 1 : 0;
         _gridHeaders = CashUnitsGrid.Columns.Select(c => c.Header as string ?? "").ToList();
         Loc.Attach(this);

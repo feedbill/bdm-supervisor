@@ -47,16 +47,16 @@ public sealed class SpParamsService
     {
         var list = new List<SpParam>
         {
-            Ini("Velocidad", "Velocidad de depósito (clasificación)", "Billetes por minuto al depositar con validación. 300–1200. 750 = 12,5 billetes/s", MachineConf, "MachineSpeedPara", "mSortPPM"),
-            Ini("Velocidad", "Velocidad de conteo simple", "Billetes por minuto en conteo sin clasificar. 300–1200", MachineConf, "MachineSpeedPara", "mCountPPM"),
+            Ini("Velocidad", "Velocidad de depósito (clasificación)", "Billetes por minuto al depositar con validación. 300–1200 (Galicia: 850)", MachineConf, "MachineSpeedPara", "mSortPPM"),
+            Ini("Velocidad", "Velocidad de conteo simple", "Billetes por minuto en conteo sin clasificar. 300–1200 (Galicia: 850)", MachineConf, "MachineSpeedPara", "mCountPPM"),
             Ini("Velocidad", "Velocidad de conteo por denominación", "Billetes por minuto en conteo por denominación. 300–1200", MachineConf, "MachineSpeedPara", "mDenomCountPPM"),
 
-            Ini("Depósito", "Reintentos de prensado (fallo)", "Veces que reintenta prensar los billetes si falla ('aleteo')", BneConfig, "StoreCash", "retry"),
-            Ini("Depósito", "Prensadas adicionales (éxito)", "Prensadas extra después de un prensado exitoso", BneConfig, "StoreCash", "successretry"),
+            Ini("Depósito", "Reintentos luego de depósito no exitoso", "Aleteos: veces que reintenta prensar los billetes si el prensado falla (SNBC: retry)", BneConfig, "StoreCash", "retry"),
+            Ini("Depósito", "Reintentos luego de depósito exitoso", "Aleteos adicionales después de un prensado exitoso (SNBC: successretry)", BneConfig, "StoreCash", "successretry"),
             Ini("Depósito", "Billete en boca: seguir prensando", "1 = si detecta billete en la boca sigue prensando; 0 = corta con error", BneConfig, "StoreCash", "ExitHasNote"),
             Ini("Depósito", "Máximo de billetes por depósito", "Límite por operación de depósito (CIM MaxCashInItems)", CrmTcr, "PHY", "MaxCashInItems"),
             Ini("Depósito", "Capacidad del escrow", "Billetes en el apilador temporal", CrmTcr, "PHY", "IntermediateStacker"),
-            Ini("Depósito", "Moneda", "Código de moneda del validador", CrmTcr, "PHY", "CurrencyName", editable: false),
+            Ini("Depósito", "Moneda", "Código ISO de la moneda del validador (ARS, USD...)", CrmTcr, "PHY", "CurrencyName"),
 
             Ini("Shutter", "Compuerta validador → bolsa (drop door)", "1 = equipo con compuerta entre validador y bolsa; 0 = sin compuerta (Galicia)", CrmTcr, "PHY", "ShutterDropDoorSurport"),
             Ini("Shutter", "Shutter de entrada", "1 = soporta shutter en la boca de depósito", CrmTcr, "PHY", "ShutterInSurport"),
@@ -155,6 +155,7 @@ public sealed class SpParamsService
                 lines[i] = Regex.Replace(lines[i], @"=\s*.*$", "=" + value); written = true; break;
             }
         }
+        if (!written && inSec && secEnd < 0) secEnd = lines.Count;
         if (!written)
         {
             if (secEnd < 0) { lines.Add($"[{section}]"); lines.Add($"{key}={value}"); }
