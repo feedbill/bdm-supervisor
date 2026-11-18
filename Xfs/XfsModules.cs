@@ -137,7 +137,7 @@ public static class XfsModules
     /// <summary>Agrega las líneas propias de cada clase y devuelve el desplazamiento de lpszExtra (-1 si no hay).</summary>
     static int DecodeStatus(string type, IntPtr b, ModuleStatus st)
     {
-        void L(string label, string v) => st.Lines.Add(new ModuleLine(label, v, Bad(v) ? false : v is "Desconocido" or "No soportado" || v.StartsWith("0x") ? null : true));
+        void L(string label, string v) => st.Lines.Add(new ModuleLine(label, v, Bad(v) ? false : v is "Desconocido" or "No soportado" or "Sin dato" || v.StartsWith("0x") ? null : true));
         switch (ClassOf(type))
         {
             case PTR:
@@ -155,12 +155,16 @@ public static class XfsModules
                 L("Encriptación", Pick(PinEnc, W(b, 2)));
                 return 4;
             case SIU:
-                if (Readable(b, 230) < 230) return -1;
-                for (int i = 0; i < SiuDoorNames.Length; i++) { int v = WB(b, 66 + 2 * i); if (v > 1) L(SiuDoorNames[i], SiuDoor(v)); }
-                for (int i = 0; i < SiuSensorNames.Length; i++) { int v = WB(b, 2 + 2 * i); if (v > 1) st.Lines.Add(new ModuleLine(SiuSensorNames[i], SiuOnOff(v))); }
-                for (int i = 0; i < SiuIndicatorNames.Length; i++) { int v = WB(b, 98 + 2 * i); if (v > 1) st.Lines.Add(new ModuleLine(SiuIndicatorNames[i], SiuOnOff(v))); }
-                for (int i = 0; i < GuideLightNames.Length; i++) { int v = WB(b, 162 + 2 * i); if (v > 1) st.Lines.Add(new ModuleLine("Luz guía · " + GuideLightNames[i], SiuLight(v))); }
-                return 226;
+            {
+                if (Readable(b, 198) < 198) return -1;
+                int extra = SiuExtraOffset(b), lights = extra == 194 ? 16 : 32;
+                // SP de SNBC: 0 = el elemento no existe; 1 = existe pero sin estado informado
+                for (int i = 0; i < SiuDoorNames.Length; i++) { int v = WB(b, 66 + 2 * i); if (v >= 1) L(SiuDoorNames[i], SiuDoor(v)); }
+                for (int i = 0; i < SiuSensorNames.Length; i++) { int v = WB(b, 2 + 2 * i); if (v >= 1) st.Lines.Add(new ModuleLine(SiuSensorNames[i], SiuOnOff(v))); }
+                for (int i = 0; i < SiuIndicatorNames.Length; i++) { int v = WB(b, 98 + 2 * i); if (v >= 1) st.Lines.Add(new ModuleLine(SiuIndicatorNames[i], SiuOnOff(v))); }
+                for (int i = 0; i < Math.Min(lights, GuideLightNames.Length); i++) { int v = WB(b, 162 + 2 * i); if (v >= 1) st.Lines.Add(new ModuleLine("Luz guía · " + GuideLightNames[i], SiuLight(v))); }
+                return extra;
+            }
             case CAM:
                 for (int i = 0; i < 3; i++)
                 {
@@ -177,9 +181,23 @@ public static class XfsModules
         return -1;
     }
 
-    public static string SiuDoor(int v) => v switch { 4 => "Cerrada", 8 => "ABIERTA", 16 => "Cerrada con llave", 32 => "Cerrada con cerrojo", 64 => "FORZADA", _ => $"0x{v:X4}" };
-    public static string SiuOnOff(int v) => v switch { 2 => "Inactivo", 4 => "Activo", _ => $"0x{v:X4}" };
-    public static string SiuLight(int v) => v switch { 2 => "Apagada", 4 => "Titilando lento", 8 => "Titilando", 16 => "Titilando rápido", 0x80 => "Encendida", _ => $"0x{v:X4}" };
+    /// <summary>
+    /// Desplazamiento de lpszExtra en WFSSIUSTATUS: 194 si el SP usa 16 luces guía (XFS 3.0x, como el SIU_STM de SNBC),
+    /// 226 si usa 32 (XFS 3.10+). Se decide mirando si en 194 hay un puntero a texto "clave=valor".
+    /// </summary>
+    static int SiuExtraOffset(IntPtr b)
+    {
+        IntPtr p = Marshal.ReadIntPtr(b, 194);
+        byte[] t = SafeBytes(p, 64);
+        int n = Array.IndexOf(t, (byte)0);
+        int eq = Array.IndexOf(t, (byte)'=');
+        if (n > 2 && eq > 0 && eq < n && t.Take(n).All(c => (c >= 0x20 && c < 0x7F) || c >= 0xA0)) return 194;
+        return 226;
+    }
+
+    public static string SiuDoor(int v) => v switch { 1 => "Sin dato", 4 => "Cerrada", 8 => "ABIERTA", 16 => "Cerrada con llave", 32 => "Cerrada con cerrojo", 64 => "FORZADA", _ => $"0x{v:X4}" };
+    public static string SiuOnOff(int v) => v switch { 1 => "Sin dato", 2 => "Inactivo", 4 => "Activo", _ => $"0x{v:X4}" };
+    public static string SiuLight(int v) => v switch { 1 => "Apagada", 2 => "Apagada", 4 => "Titilando lento", 8 => "Titilando", 16 => "Titilando rápido", 0x80 => "Encendida", _ => $"0x{v:X4}" };
 
     // ---------------- Pruebas ----------------
 
@@ -352,7 +370,8 @@ public static class XfsModules
         {
             res = s.GetInfo(SIU + 1);
             IntPtr b = Marshal.ReadIntPtr(res, ResultBuffer);
-            for (int i = 0; i < 32; i++) if (WB(b, 162 + 2 * i) > 1) avail.Add(i);
+            int lights = SiuExtraOffset(b) == 194 ? 16 : 32;
+            for (int i = 0; i < lights; i++) if (WB(b, 162 + 2 * i) >= 1) avail.Add(i);
         }
         finally { XfsSession.FreeResult(res); }
         if (avail.Count == 0) return new ModuleTestResult(false, "La placa SIU no informa luces guía disponibles.");
@@ -514,7 +533,7 @@ public static class XfsModules
             if (b[i] != 0) continue;
             if (i == start) break;                 // doble nulo: fin de la lista
             string s = Encoding.Latin1.GetString(b, start, i - start);
-            if (s.Any(c => c < 0x20)) break;       // basura: no es una lista de texto
+            if (s.Any(c => c < 0x20 && c != 0x09)) break;   // basura: no es una lista de texto
             parts.Add(s);
             start = i + 1;
         }

@@ -433,6 +433,7 @@ public static class Loc
         ["Cancelar"] = "Cancel",
         ["Equipo"] = "Device",
         ["Validador"] = "Validator",
+        ["Sin dato"] = "No data",
         ["Impresora de tickets"] = "Receipt printer",
         ["Lector de tarjeta magnética"] = "Magnetic card reader",
         ["Lector NFC"] = "NFC reader",
@@ -544,6 +545,7 @@ public static class Loc
         ["Placa SIU"] = "SIU board",
         ["Supervisor (VDM)"] = "Supervisor (VDM)",
         ["Moneda"] = "Currency",
+
     };
 
     public static string T(string? s)

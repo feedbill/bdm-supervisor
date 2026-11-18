@@ -37,14 +37,27 @@ public sealed class AppConfig
         new("PIN", "Encryptor", "Teclado pinpad"),
         new("BCR", "BarcodeReader", "Lector de código de barras"),
         new("CAM", "Camera", "Cámaras"),
-        new("FINGER", "FingerScanner", "Lector de huella"),
         new("SIU", "SIU", "Sensores e indicadores"),
     ];
+
+    /// <summary>
+    /// Carpeta del appsettings.json: la del .exe instalado. En el ejecutable single-file AppContext.BaseDirectory
+    /// apunta a la copia extraída en %TEMP% (IncludeAllContentForSelfExtract), que trae el appsettings de compilación
+    /// y no el que se edita en la instalación.
+    /// </summary>
+    public static string ConfigDir
+    {
+        get
+        {
+            string? exeDir = Path.GetDirectoryName(Environment.ProcessPath);
+            return exeDir is not null && File.Exists(Path.Combine(exeDir, "appsettings.json")) ? exeDir : AppContext.BaseDirectory;
+        }
+    }
 
     public static AppConfig Load()
     {
         var root = new ConfigurationBuilder()
-            .SetBasePath(AppContext.BaseDirectory)
+            .SetBasePath(ConfigDir)
             .AddJsonFile("appsettings.json", optional: true)
             .Build();
         var d = root.GetSection("Device");

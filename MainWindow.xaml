@@ -1,6 +1,7 @@
 ﻿<Window x:Class="BdmSupervisor.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:BdmSupervisor"
         Title="BDM-500 Supervisor · Feedbill" Height="900" Width="1280" MinHeight="760" WindowState="Maximized"
         WindowStartupLocation="CenterScreen" Background="White" FontFamily="Segoe UI">
     <DockPanel>
@@ -52,26 +53,23 @@
                 </ControlTemplate>
             </TabControl.Template>
             <TabControl.Resources>
+                <local:UpperConverter x:Key="Upper"/>
                 <Style TargetType="TabItem">
-                    <Setter Property="FontSize" Value="15"/>
-                    <Setter Property="Foreground" Value="{StaticResource Dark}"/>
+                    <Setter Property="FontSize" Value="14"/>
                     <Setter Property="Cursor" Value="Hand"/>
                     <Setter Property="Template">
                         <Setter.Value>
                             <ControlTemplate TargetType="TabItem">
-                                <Border x:Name="Bd" Background="Transparent" BorderBrush="Transparent" BorderThickness="5,0,0,0" Padding="16,12,10,12">
-                                    <ContentPresenter ContentSource="Header" VerticalAlignment="Center" HorizontalAlignment="Left">
-                                        <ContentPresenter.Resources>
-                                            <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style>
-                                        </ContentPresenter.Resources>
-                                    </ContentPresenter>
+                                <Border x:Name="Bd" Background="Transparent" Padding="20,12,10,12" Margin="6,1,6,1" CornerRadius="6">
+                                    <TextBlock x:Name="Tx" Text="{Binding Header, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource Upper}}"
+                                               Foreground="{StaticResource Dark}" TextWrapping="Wrap" VerticalAlignment="Center"/>
                                 </Border>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Background" Value="#EAEAEE"/></Trigger>
                                     <Trigger Property="IsSelected" Value="True">
-                                        <Setter TargetName="Bd" Property="Background" Value="White"/>
-                                        <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Brand}"/>
-                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter TargetName="Bd" Property="Background" Value="{StaticResource Brand}"/>
+                                        <Setter TargetName="Tx" Property="Foreground" Value="White"/>
+                                        <Setter TargetName="Tx" Property="FontWeight" Value="SemiBold"/>
                                     </Trigger>
                                 </ControlTemplate.Triggers>
                             </ControlTemplate>

@@ -11,3 +11,14 @@
 - Tester de SNBC (`C:\SNBC SP\VDM\DeviceTestorBySP.exe`): MFC, recursos en chino (GBK). `tools/traduccion-tester-snbc`
   genera la versión en inglés reescribiendo diálogos/strings y parcheando los estados en `.rdata`.
 - La app como VDA: `TestTool = <ruta>\BdmSupervisor.exe --vda` (sin comillas; el SP no las entiende).
+
+## Pendiente para la próxima versión (después de 0.7.0) — 18/11/2026
+- Hecho en el código, sin publicar:
+  - appsettings.json se lee de la carpeta del .exe (antes el single-file usaba la copia embebida: los cambios en la instalación se ignoraban).
+  - BDM-500 sin lector de huella.
+  - Menú lateral en mayúsculas; seleccionado todo rojo con texto blanco.
+  - SIU: SNBC usa 16 luces guía (lpszExtra en 194, no 226); 0 = no existe, 1 = existe sin estado.
+- Probado en C210T (Agent detenido unos minutos): SIU en línea con puertas, sensores y 5 luces guía; pinpad XZ-H555 en línea (sin claves cargadas);
+  impresora "Offline" (error de hardware, ya conocido); cámaras ambiente y cliente OK.
+- Falta: ver el resultado de la prueba de luces (tardó más de 14 s), confirmar que titilan físicamente, y qué significa el valor 1 en puertas/sensores del SIU_STM.
+- En el C210T la impresora, el pinpad y la SIU los toma el FeedbillAgent: para probarlos hay que detener el servicio.
