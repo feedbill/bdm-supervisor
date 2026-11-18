@@ -16,6 +16,11 @@ public static class Loc
     public static event Action? Changed;
     private static readonly (string Es, string En)[] Phrases =
     [
+        ("Cada luz se puede encender, hacer titilar o apagar por separado. «Probar todas» las hace titilar 5 segundos y después las apaga.", "Each light can be turned on, flashed or turned off individually. «Test all» flashes them for 5 seconds and then turns them off."),
+        (": la SIU no aceptó el comando", ": the SIU rejected the command"),
+        (": encendida", ": on"),
+        (": titilando", ": flashing"),
+        (": apagada", ": off"),
         ("Esto pone en cero los contadores de la bolsa. Hágalo solo después de retirar la bolsa llena y colocar la nueva. ¿Continuar?", "This resets the bag counters to zero. Do it only after removing the full bag and fitting a new one. Continue?"),
         ("Mantenimiento directo: se detiene el Service Provider del validador para mover las compuertas con el SDK de SNBC.", "Direct maintenance: the validator Service Provider is stopped to use the SNBC SDK."),
         ("El equipo está en mantenimiento directo (compuertas). Pulse «Volver a operación normal» para usar esta función.", "The device is in direct maintenance. Return to normal operation to use this function."),
@@ -408,6 +413,13 @@ public static class Loc
     ];
     private static readonly Dictionary<string, string> Whole = new()
     {
+        ["Indicadores luminosos"] = "Guide lights",
+        ["PROBAR TODAS LAS LUCES"] = "TEST ALL LIGHTS",
+        ["ENCENDER"] = "ON",
+        ["TITILAR"] = "FLASH",
+        ["APAGAR"] = "OFF",
+        ["La SIU no informa luces guía."] = "The SIU reports no guide lights.",
+        ["Sin conexión con la SIU."] = "No connection to the SIU.",
         ["Listo"] = "Ready",
         ["Atasco"] = "Jam",
         ["DETECTADO"] = "DETECTED",

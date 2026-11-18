@@ -22,3 +22,5 @@
   impresora "Offline" (error de hardware, ya conocido); cámaras ambiente y cliente OK.
 - Falta: ver el resultado de la prueba de luces (tardó más de 14 s), confirmar que titilan físicamente, y qué significa el valor 1 en puertas/sensores del SIU_STM.
 - En el C210T la impresora, el pinpad y la SIU los toma el FeedbillAgent: para probarlos hay que detener el servicio.
+- Pedido 18/11 (próxima versión, hecho en el código sin publicar): en Sensores e indicadores, columna derecha "Indicadores luminosos" con cada luz guía listada
+  y botones ENCENDER / TITILAR / APAGAR por luz; "Probar todas" sigue disponible. Falta probarlo en el C210T.

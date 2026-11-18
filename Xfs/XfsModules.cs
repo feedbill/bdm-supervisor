@@ -17,6 +17,8 @@ public sealed class ModuleStatus
     public string Error { get; init; } = "";
     public string Sp { get; init; } = "";
     public List<ModuleLine> Lines { get; } = [];
+    /// <summary>Luces guía de la SIU: índice XFS, nombre y estado actual.</summary>
+    public List<(int Index, string Name, int Value)> Lights { get; } = [];
     public string Extra { get; set; } = "";
     public bool Ok => Opened && Device == 0;
 }
@@ -55,7 +57,7 @@ public static class XfsModules
         "IDC" => "LEER TARJETA",
         "NFC" => "LEER TARJETA SIN CONTACTO",
         "PIN" => "PROBAR TECLADO",
-        "SIU" => "PROBAR INDICADORES LUMINOSOS",
+        "SIU" => "PROBAR TODAS LAS LUCES",
         "CAM" => "TOMAR FOTO",
         "BCR" => "LEER CÓDIGO",
         _ => "",
@@ -67,7 +69,7 @@ public static class XfsModules
         "IDC" => "Pulse el botón y pase o inserte una tarjeta de banda magnética (30 s). Los datos se muestran enmascarados.",
         "NFC" => "Pulse el botón y acerque una tarjeta sin contacto al lector (30 s). Se muestra el ATR / UID.",
         "PIN" => "Pulse el botón y presione teclas en el pinpad; termina con ENTER o CANCEL (30 s).",
-        "SIU" => "Hace titilar 5 segundos todas las luces guía disponibles y después las apaga.",
+        "SIU" => "Cada luz se puede encender, hacer titilar o apagar por separado. «Probar todas» las hace titilar 5 segundos y después las apaga.",
         "CAM" => "Toma una foto con cada cámara disponible y muestra la última imagen generada.",
         "BCR" => "Pulse el botón y acerque un código de barras o QR al lector (20 s).",
         _ => "Este módulo solo informa su estado.",
@@ -162,7 +164,7 @@ public static class XfsModules
                 for (int i = 0; i < SiuDoorNames.Length; i++) { int v = WB(b, 66 + 2 * i); if (v >= 1) L(SiuDoorNames[i], SiuDoor(v)); }
                 for (int i = 0; i < SiuSensorNames.Length; i++) { int v = WB(b, 2 + 2 * i); if (v >= 1) st.Lines.Add(new ModuleLine(SiuSensorNames[i], SiuOnOff(v))); }
                 for (int i = 0; i < SiuIndicatorNames.Length; i++) { int v = WB(b, 98 + 2 * i); if (v >= 1) st.Lines.Add(new ModuleLine(SiuIndicatorNames[i], SiuOnOff(v))); }
-                for (int i = 0; i < Math.Min(lights, GuideLightNames.Length); i++) { int v = WB(b, 162 + 2 * i); if (v >= 1) st.Lines.Add(new ModuleLine("Luz guía · " + GuideLightNames[i], SiuLight(v))); }
+                for (int i = 0; i < lights; i++) { int v = WB(b, 162 + 2 * i); if (v >= 1) st.Lights.Add((i, i < GuideLightNames.Length ? GuideLightNames[i] : $"Luz {i}", v)); }
                 return extra;
             }
             case CAM:
@@ -383,6 +385,19 @@ public static class XfsModules
         string txt = done.Count > 0 ? "Titilaron y se apagaron: " + string.Join(", ", done) : "";
         if (failed.Count > 0) txt += (txt.Length > 0 ? "\n" : "") + "Sin respuesta: " + string.Join(", ", failed);
         return new ModuleTestResult(done.Count > 0, txt);
+    }
+
+    public const int LightOff = 0x0002, LightFlash = 0x0008, LightOn = 0x0080;
+
+    /// <summary>Enciende, hace titilar o apaga una luz guía de la SIU.</summary>
+    public static ModuleTestResult SetGuideLight(ModuleDef m, AppConfig cfg, LogService log, int light, int command)
+    {
+        using var s = new XfsSession(m.LogicalName, cfg.AppId, 15000, cfg.TraceLevel, log);
+        string name = light < GuideLightNames.Length ? GuideLightNames[light] : $"Luz {light}";
+        string what = command switch { LightOn => "encendida", LightFlash => "titilando", _ => "apagada" };
+        return SetLight(s, light, command)
+            ? new ModuleTestResult(true, $"{name}: {what}")
+            : new ModuleTestResult(false, $"{name}: la SIU no aceptó el comando");
     }
 
     static bool SetLight(XfsSession s, int light, int command)
