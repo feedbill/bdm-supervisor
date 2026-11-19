@@ -21,6 +21,8 @@ public sealed class ModuleStatus
     public List<(int[] Indexes, string Name, int Value)> Lights { get; } = [];
     /// <summary>true si el SP respondió pero la placa no (sin versión de firmware): puerto mal configurado o placa sin alimentación.</summary>
     public bool BoardSilent { get; set; }
+    /// <summary>La SIU usa los códigos de XFS 3.0x (en SNBC: 1 = apagada/cerrada/inactivo, 2 = encendida/abierta/activo).</summary>
+    public bool SiuV30 { get; set; }
     public string Extra { get; set; } = "";
     public bool Ok => Opened && Device == 0;
 }
@@ -95,7 +97,15 @@ public static class XfsModules
         {
             return new ModuleStatus { Opened = false, Error = ex.Message };
         }
-        using (s)
+        using (s) return ReadStatus(s, m, log);
+    }
+
+    private static readonly Dictionary<string, string> _lastRaw = new();
+
+    /// <summary>Lee el estado con una sesión ya abierta (la SIU se mantiene abierta mientras se ve la pestaña).</summary>
+    public static ModuleStatus ReadStatus(XfsSession s, ModuleDef m, LogService log)
+    {
+        uint cls = ClassOf(m.Type);
         {
             IntPtr res = IntPtr.Zero;
             try
@@ -109,7 +119,15 @@ public static class XfsModules
                 int extraOff = DecodeStatus(m.Type, b, st);
                 if (extraOff >= 0 && Readable(b, extraOff + 4) >= extraOff + 4) st.Extra = ReadExtra(Marshal.ReadIntPtr(b, extraOff));
                 if (ClassOf(m.Type) == SIU && dev == 0 && System.Text.RegularExpressions.Regex.IsMatch(st.Extra, @"FirmwareVersion=\s*(·|$)")) st.BoardSilent = true;
-                log.Info($"[{m.LogicalName}] status raw ({extraOff + 4} bytes): {Hex(b, Math.Max(extraOff + 4, 16))}");
+                string raw = Hex(b, Math.Max(extraOff, 16));
+                lock (_lastRaw)
+                {
+                    if (!_lastRaw.TryGetValue(m.LogicalName, out var prev) || prev != raw)
+                    {
+                        _lastRaw[m.LogicalName] = raw;
+                        log.Info($"[{m.LogicalName}] status raw ({raw.Length / 2} bytes): {raw}");
+                    }
+                }
                 // Fuera de línea: los valores de los componentes no son confiables, se muestran sin color
                 if (dev != 0) for (int i = 1; i < st.Lines.Count; i++) if (st.Lines[i].Ok == true) st.Lines[i] = st.Lines[i] with { Ok = null };
                 return st;
@@ -163,21 +181,23 @@ public static class XfsModules
             {
                 if (Readable(b, 198) < 198) return -1;
                 int extra = SiuExtraOffset(b), lights = extra == 194 ? 16 : 32;
+                bool v30 = extra == 194;   // SP con constantes XFS 3.0x (SNBC SIU_STM): ver SiuDoor/SiuOnOff/SiuLight
                 var phy = SiuPhysics.Load();
-                // SP de SNBC: 0 = el elemento no existe; 1 = existe pero sin estado informado
-                void Part(string section, string[] names, int off, int count, Func<int, string> text, bool door)
+                // SP de SNBC: 0 = el elemento no existe
+                void Part(string section, string[] names, int off, int count, bool door)
                 {
                     foreach (var (idxs, label) in Group(phy, section, names, count, i => WB(b, off + 2 * i) >= 1))
                     {
                         int v = WB(b, off + 2 * idxs[0]);
-                        if (door) L(label, SiuDoor(v)); else st.Lines.Add(new ModuleLine(label, text(v)));
+                        if (door) L(label, SiuDoor(v, v30)); else st.Lines.Add(new ModuleLine(label, SiuOnOff(v, v30)));
                     }
                 }
-                Part("Door", SiuDoorNames, 66, 16, SiuDoor, true);
-                Part("Sensor", SiuSensorNames, 2, 32, SiuOnOff, false);
-                Part("Indicator", SiuIndicatorNames, 98, 16, SiuOnOff, false);
+                Part("Door", SiuDoorNames, 66, 16, true);
+                Part("Sensor", SiuSensorNames, 2, 32, false);
+                Part("Indicator", SiuIndicatorNames, 98, 16, false);
                 foreach (var (idxs, label) in Group(phy, "GuidLight", GuideLightNames, lights, i => WB(b, 162 + 2 * i) >= 1))
                     st.Lights.Add((idxs, label, WB(b, 162 + 2 * idxs[0])));
+                st.SiuV30 = v30;
                 return extra;
             }
             case CAM:
@@ -232,9 +252,17 @@ public static class XfsModules
         return 226;
     }
 
-    public static string SiuDoor(int v) => v switch { 1 => "Sin dato", 4 => "Cerrada", 8 => "ABIERTA", 16 => "Cerrada con llave", 32 => "Cerrada con cerrojo", 64 => "FORZADA", _ => $"0x{v:X4}" };
-    public static string SiuOnOff(int v) => v switch { 1 => "Sin dato", 2 => "Inactivo", 4 => "Activo", _ => $"0x{v:X4}" };
-    public static string SiuLight(int v) => v switch { 1 => "Apagada", 2 => "Apagada", 4 => "Titilando lento", 8 => "Titilando", 16 => "Titilando rápido", 0x80 => "Encendida", _ => $"0x{v:X4}" };
+    // Códigos XFS 3.10+ (estándar) y 3.0x (los que usa el SIU_STM de SNBC, según su log: comando 2 = SIU_ON, 4 = SLOW_FLASH, 8 = MEDIUM_FLASH)
+    public static string SiuDoor(int v, bool v30 = false) => v30
+        ? v switch { 1 => "Cerrada", 2 => "ABIERTA", 4 => "Cerrada con llave", 8 => "Cerrada con cerrojo", _ => $"0x{v:X4}" }
+        : v switch { 1 => "Sin dato", 4 => "Cerrada", 8 => "ABIERTA", 16 => "Cerrada con llave", 32 => "Cerrada con cerrojo", 64 => "FORZADA", _ => $"0x{v:X4}" };
+    public static string SiuOnOff(int v, bool v30 = false) => v30
+        ? v switch { 1 => "Inactivo", 2 => "ACTIVO", _ => $"0x{v:X4}" }
+        : v switch { 1 => "Sin dato", 2 => "Inactivo", 4 => "Activo", _ => $"0x{v:X4}" };
+    public static string SiuLight(int v, bool v30 = false) => v30
+        ? v switch { 1 => "Apagada", 2 => "Encendida", 4 => "Titilando lento", 8 => "Titilando", 16 => "Titilando rápido", _ => $"0x{v:X4}" }
+        : v switch { 1 => "Apagada", 2 => "Apagada", 4 => "Titilando lento", 8 => "Titilando", 16 => "Titilando rápido", 0x80 => "Encendida", _ => $"0x{v:X4}" };
+    public static bool SiuLightLit(int v, bool v30) => v30 ? v is 2 or 4 or 8 or 16 : v is 4 or 8 or 16 or 0x80;
 
     // ---------------- Pruebas ----------------
 
@@ -373,7 +401,7 @@ public static class XfsModules
             Marshal.WriteInt32(cmd, 10, 0x3FFFF);           // ulActiveKeys: 0-9, ENTER, CANCEL, CLEAR, BACKSPACE, HELP, ., 00, 000
             Marshal.WriteInt32(cmd, 14, 0);                 // ulTerminateFDKs
             Marshal.WriteInt32(cmd, 18, 0x400 | 0x800);     // ulTerminateKeys: ENTER, CANCEL
-            res = s.Execute(PIN + 9, cmd, 30000);           // WFS_CMD_PIN_GET_DATA
+            res = s.Execute(PIN + 7, cmd, 30000);           // WFS_CMD_PIN_GET_DATA (407)
             IntPtr b = Marshal.ReadIntPtr(res, ResultBuffer);
             var keys = new List<string>();
             if (b != IntPtr.Zero)
@@ -402,21 +430,23 @@ public static class XfsModules
     static ModuleTestResult TestGuideLights(XfsSession s)
     {
         var avail = new List<int>();
+        bool v30 = false;
         IntPtr res = IntPtr.Zero;
         try
         {
             res = s.GetInfo(SIU + 1);
             IntPtr b = Marshal.ReadIntPtr(res, ResultBuffer);
-            int lights = SiuExtraOffset(b) == 194 ? 16 : 32;
+            v30 = SiuExtraOffset(b) == 194;
+            int lights = v30 ? 16 : 32;
             for (int i = 0; i < lights; i++) if (WB(b, 162 + 2 * i) >= 1) avail.Add(i);
         }
         finally { XfsSession.FreeResult(res); }
         if (avail.Count == 0) return new ModuleTestResult(false, "La placa SIU no informa luces guía disponibles.");
 
         var done = new List<string>(); var failed = new List<string>();
-        foreach (int i in avail) (SetLight(s, i, 0x0004) ? done : failed).Add(i < GuideLightNames.Length ? GuideLightNames[i] : $"#{i}");
+        foreach (int i in avail) (SetLight(s, i, LightCode(0x0004, v30)) ? done : failed).Add(i < GuideLightNames.Length ? GuideLightNames[i] : $"#{i}");
         Thread.Sleep(5000);
-        foreach (int i in avail) SetLight(s, i, 0x0002);
+        foreach (int i in avail) SetLight(s, i, LightCode(LightOff, v30));
         string txt = done.Count > 0 ? "Titilaron y se apagaron: " + string.Join(", ", done) : "";
         if (failed.Count > 0) txt += (txt.Length > 0 ? "\n" : "") + "Sin respuesta: " + string.Join(", ", failed);
         return new ModuleTestResult(done.Count > 0, txt);
@@ -424,14 +454,21 @@ public static class XfsModules
 
     public const int LightOff = 0x0002, LightFlash = 0x0008, LightOn = 0x0080;
 
+    /// <summary>Traduce el comando estándar (3.10+) al código que entiende un SP 3.0x.</summary>
+    public static int LightCode(int command, bool v30) => !v30 ? command : command switch { LightOff => 0x0001, LightOn => 0x0002, LightFlash => 0x0008, 0x0004 => 0x0004, _ => command };
+
     /// <summary>Enciende, hace titilar o apaga una luz guía de la SIU.</summary>
-    public static ModuleTestResult SetGuideLight(ModuleDef m, AppConfig cfg, LogService log, int[] lights, string name, int command)
+    public static ModuleTestResult SetGuideLight(ModuleDef m, AppConfig cfg, LogService log, int[] lights, string name, int command, XfsSession? open = null, bool v30 = false)
     {
-        using var s = new XfsSession(m.LogicalName, cfg.AppId, 15000, cfg.TraceLevel, log);
-        string what = command switch { LightOn => "encendida", LightFlash => "titilando", _ => "apagada" };
-        bool ok = false;
-        foreach (int l in lights) ok |= SetLight(s, l, command);
-        return ok ? new ModuleTestResult(true, $"{name}: {what}") : new ModuleTestResult(false, $"{name}: la SIU no aceptó el comando");
+        XfsSession s = open ?? new XfsSession(m.LogicalName, cfg.AppId, 15000, cfg.TraceLevel, log);
+        try
+        {
+            string what = command switch { LightOn => "encendida", LightFlash => "titilando", _ => "apagada" };
+            bool ok = false;
+            foreach (int l in lights) ok |= SetLight(s, l, LightCode(command, v30));
+            return ok ? new ModuleTestResult(true, $"{name}: {what}") : new ModuleTestResult(false, $"{name}: la SIU no aceptó el comando");
+        }
+        finally { if (open is null) s.Dispose(); }
     }
 
     static bool SetLight(XfsSession s, int light, int command)

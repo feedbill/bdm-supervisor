@@ -1,6 +1,6 @@
 ﻿; BDM-500 Supervisor - instalador Feedbill (Inno Setup 6)
 #define AppName "BDM-500 Supervisor"
-#define AppVersion "0.7.2"
+#define AppVersion "0.7.4"
 #define AppPublisher "Feedbill"
 #define AppExe "BdmSupervisor.exe"
 #define SrcDir "C:\feedbill\BdmSupervisor"
@@ -23,7 +23,9 @@ ArchitecturesAllowed=x86compatible
 PrivilegesRequired=admin
 WizardStyle=modern
 UninstallDisplayIcon={app}\{#AppExe}
-CloseApplications=yes
+CloseApplications=force
+RestartApplications=no
+UsePreviousAppDir=yes
 DisableProgramGroupPage=yes
 
 [Languages]
@@ -69,9 +71,11 @@ Source: "{#SrcDir}\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SrcDir}\installer\vc_redist.x86.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: NeedVcRedist
 
 [Dirs]
-Name: "C:\Feedbill\BdmSupervisor\logs"; Permissions: users-modify
-Name: "C:\Feedbill\BdmSupervisor\export"; Permissions: users-modify
+Name: "C:\Feedbill\BdmSupervisor\logs"; Permissions: users-modify; Flags: uninsneveruninstall
+Name: "C:\Feedbill\BdmSupervisor\export"; Permissions: users-modify; Flags: uninsneveruninstall
 Name: "{commonappdata}\Feedbill\BdmSupervisor"; Permissions: users-modify
+Name: "{commonappdata}\Feedbill\BdmSupervisor\logs"; Permissions: users-modify
+Name: "{commonappdata}\Feedbill\BdmSupervisor\export"; Permissions: users-modify
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"
@@ -157,6 +161,15 @@ var R: Integer;
 begin
   Exec('taskkill', '/F /IM SNBC_SPVDM.exe', '', SW_HIDE, ewWaitUntilTerminated, R);
   Exec('taskkill', '/F /IM SNBC_SPCRM.exe', '', SW_HIDE, ewWaitUntilTerminated, R);
+end;
+
+{ Cierra BDM Supervisor si está abierto (por ejemplo lanzado por Softy como TestTool) para poder reemplazar el .exe }
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var R: Integer;
+begin
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM BdmSupervisor.exe', '', SW_HIDE, ewWaitUntilTerminated, R);
+  Sleep(1000);
+  Result := '';
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);

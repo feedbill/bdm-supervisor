@@ -25,6 +25,12 @@ public sealed class ModuleTab : Grid
     private readonly Button _refresh, _test;
     private readonly Image _img;
     private bool _busy;
+    // SIU: la sesión XFS queda abierta mientras se ve la pestaña y el estado se lee cada segundo
+    // (si se abre y cierra en cada lectura, el SP de SNBC no llega a leer los sensores de la placa).
+    private XfsSession? _session;
+    private readonly System.Windows.Threading.DispatcherTimer? _poll;
+    private bool _v30;
+    private string _lastSig = "";
 
     public ModuleDef Def => _m;
 
@@ -89,20 +95,53 @@ public sealed class ModuleTab : Grid
         var rightScroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = right };
         SetRow(rightScroll, 1); SetColumn(rightScroll, 2);
         Children.Add(rightScroll);
+
+        if (siu)
+        {
+            _poll = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _poll.Tick += async (_, _) => { if (!_busy && IsVisible) await RefreshAsync(quiet: true); };
+            IsVisibleChanged += (_, e) =>
+            {
+                if ((bool)e.NewValue) _poll.Start();
+                else { _poll.Stop(); CloseSession(); }
+            };
+        }
     }
 
-    public async Task RefreshAsync()
+    public async Task RefreshAsync(bool quiet = false)
     {
         if (_busy) return;
-        _busy = true; _refresh.IsEnabled = _test.IsEnabled = false;
-        _barDetail.Text = "Leyendo estado...";
+        _busy = true;
+        if (!quiet) { _refresh.IsEnabled = _test.IsEnabled = false; _barDetail.Text = "Leyendo estado..."; }
         try
         {
-            var st = await Task.Run(() => XfsModules.ReadStatus(_m, _cfg, _log));
-            Show(st);
+            var st = await Task.Run(Read);
+            string sig = st.Opened + "|" + st.Device + "|" + st.Error + "|" + st.BoardSilent + "|" + string.Join(";", st.Lines.Select(l => l.Label + "=" + l.Value))
+                         + "|" + string.Join(";", st.Lights.Select(l => l.Name + "=" + l.Value));
+            if (!quiet || sig != _lastSig) { _lastSig = sig; Show(st); }
         }
         catch (Exception ex) { _barDetail.Text = "Error: " + ex.Message; _bar.Background = Res("Bad"); }
-        finally { _busy = false; _refresh.IsEnabled = _test.IsEnabled = true; }
+        finally { _busy = false; if (!quiet) _refresh.IsEnabled = _test.IsEnabled = true; }
+    }
+
+    private ModuleStatus Read()
+    {
+        if (_poll is null) return XfsModules.ReadStatus(_m, _cfg, _log);
+        if (_session is null)
+        {
+            try { _session = new XfsSession(_m.LogicalName, _cfg.AppId, 8000, _cfg.TraceLevel, _log); }
+            catch (XfsException ex) { return new ModuleStatus { Opened = false, Error = XfsConst.ErrorName(ex.HResult2) }; }
+        }
+        var st = XfsModules.ReadStatus(_session, _m, _log);
+        if (st.Error.Length > 0) CloseSession();   // se perdió la conexión: se reabre en la próxima lectura
+        _v30 = st.SiuV30;
+        return st;
+    }
+
+    private void CloseSession()
+    {
+        var s = _session; _session = null;
+        if (s is not null) Task.Run(s.Dispose);
     }
 
     private void Show(ModuleStatus st)
@@ -146,10 +185,10 @@ public sealed class ModuleTab : Grid
             var g = new Grid { Margin = new Thickness(0, 4, 0, 4) };
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            bool lit = value is 0x04 or 0x08 or 0x10 or 0x80;
+            bool lit = XfsModules.SiuLightLit(value, _v30);
             var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
             info.Children.Add(new TextBlock { Text = name, FontSize = 15, TextWrapping = TextWrapping.Wrap });
-            info.Children.Add(new TextBlock { Text = XfsModules.SiuLight(value), FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = lit ? Res("Warn") : Res("Muted") });
+            info.Children.Add(new TextBlock { Text = XfsModules.SiuLight(value, _v30), FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = lit ? Res("Warn") : Res("Muted") });
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             foreach (var (caption, cmd) in new[] { ("ENCENDER", XfsModules.LightOn), ("TITILAR", XfsModules.LightFlash), ("APAGAR", XfsModules.LightOff) })
             {
@@ -171,7 +210,7 @@ public sealed class ModuleTab : Grid
         _busy = true; _refresh.IsEnabled = _test.IsEnabled = _lights!.IsEnabled = false;
         try
         {
-            var r = await Task.Run(() => XfsModules.SetGuideLight(_m, _cfg, _log, lights, name, command));
+            var r = await Task.Run(() => XfsModules.SetGuideLight(_m, _cfg, _log, lights, name, command, _session, _v30));
             _result.Text = r.Text;
             _result.Foreground = Res(r.Ok ? "Ok" : "Bad");
             _log.Info($"[{_m.LogicalName}] luz {string.Join(",", lights)} comando 0x{command:X}: {r.Text}");
@@ -179,8 +218,7 @@ public sealed class ModuleTab : Grid
         catch (XfsException ex) { _result.Text = "No se pudo abrir el servicio: " + XfsConst.ErrorName(ex.HResult2); _result.Foreground = Res("Bad"); }
         catch (Exception ex) { _result.Text = "Error: " + ex.Message; _result.Foreground = Res("Bad"); }
         finally { _busy = false; _refresh.IsEnabled = _test.IsEnabled = _lights.IsEnabled = true; }
-        await Task.Delay(400);   // la SIU de SNBC informa el estado nuevo con un pequeño retraso
-        await RefreshAsync();
+        await RefreshAsync(quiet: true);
     }
 
     private void AddLine(ModuleLine l)

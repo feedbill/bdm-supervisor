@@ -463,6 +463,7 @@ public static class Loc
         ["Cancelar"] = "Cancel",
         ["Equipo"] = "Device",
         ["Validador"] = "Validator",
+        ["ACTIVO"] = "ACTIVE",
         ["Sin dato"] = "No data",
         ["Impresora de tickets"] = "Receipt printer",
         ["Lector de tarjeta magnética"] = "Magnetic card reader",

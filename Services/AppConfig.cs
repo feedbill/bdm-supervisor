@@ -56,6 +56,27 @@ public sealed class AppConfig
         }
     }
 
+    /// <summary>
+    /// Devuelve la carpeta pedida si se puede crear y escribir; si no (permisos o políticas del equipo del banco),
+    /// usa %ProgramData%\Feedbill\BdmSupervisor\&lt;sub&gt;, que el instalador deja con permiso de escritura para los usuarios.
+    /// </summary>
+    public static string Writable(string dir, string sub)
+    {
+        foreach (var d in new[] { dir, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Feedbill", "BdmSupervisor", sub),
+                                  Path.Combine(Path.GetTempPath(), "Feedbill", "BdmSupervisor", sub) })
+        {
+            try
+            {
+                Directory.CreateDirectory(d);
+                string t = Path.Combine(d, ".escritura");
+                File.WriteAllText(t, "ok"); File.Delete(t);
+                return d;
+            }
+            catch { }
+        }
+        return dir;
+    }
+
     public static AppConfig Load()
     {
         var root = new ConfigurationBuilder()
@@ -73,8 +94,8 @@ public sealed class AppConfig
             TimeoutMs = uint.TryParse(d["TimeoutMs"], out var t) ? t : 30000,
             TraceLevel = uint.TryParse(d["TraceLevel"], out var tl) ? tl : 0,
             SafeDoorMonitored = bool.TryParse(d["SafeDoorMonitored"], out var sdm) && sdm,
-            LogDir = p["LogDir"] ?? @"C:\Feedbill\BdmSupervisor\logs",
-            ExportDir = p["ExportDir"] ?? @"C:\Feedbill\BdmSupervisor\export",
+            LogDir = Writable(p["LogDir"] ?? @"C:\Feedbill\BdmSupervisor\logs", "logs"),
+            ExportDir = Writable(p["ExportDir"] ?? @"C:\Feedbill\BdmSupervisor\export", "export"),
             SpLogDir = p["SpLogDir"],
             SnbcToolPath = p["SnbcToolPath"],
             SupervisorPin = root.GetSection("Supervisor")["Pin"] ?? "1234",

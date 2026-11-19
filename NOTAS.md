@@ -38,3 +38,6 @@
   en appsettings "SiuPinNames", luces con ENCENDER/TITILAR/APAGAR por luz, aviso "el SP responde pero la placa no" si no hay firmware.
 - C210T: impresora BT-NH80M configurada en COM5:38400 (estaba en COM2, daba Offline); con COM5 queda en línea, papel bajo, e imprime.
   Valor original guardado en C:\fbtmp\ptr_portdesc_original.txt. Placa SIU confirmada en COM1.
+- 0.7.3/0.7.4 (19/11): probado en BDM-500 de Galicia. OK: lectora magnética, NFC, impresora, cámaras (cliente y salida), puertas SIU en vivo.
+  Pinpad: GET_DATA era 409 (mal) → 407 en 0.7.4. Código de barras: SP BCR fuera de línea "设备故障" (falla de dispositivo) → revisar driver Superlead/puerto.
+  SIU del BDM-500: SIU_PHYSICS.ini solo declara puertas (SNS2A gabinete, SNS4A caja fuerte, IN1 antivandálico); sin luces ni sensores → hay que mapear LEDs (SIUConfig o SNBC).
